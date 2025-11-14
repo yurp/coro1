@@ -3,10 +3,12 @@
 
 #pragma once
 
-#include <co1/backend.hpp>
-#include <co1/event_queue.hpp>
+#include <co1/common.hpp>
+#include <co1/context.hpp>
 #include <co1/task.hpp>
-#include <co1/utils.hpp>
+#include <co1/timer_queue.hpp>
+
+#include <queue>
 
 namespace co1
 {
@@ -19,38 +21,88 @@ public:
     auto start(F&& f)
     {
         task t = std::forward<F>(f)();
-        t.set_events_queue(&m_events);
-        t.resume();
+        t.init(promise_context { &m_context });
         run();
         return t.get();
     }
 
     void run()
     {
-        while (!m_events.empty())
+        TRACE("Starting scheduler loop");
+        while (true)
         {
             TRACE("Scheduler loop iteration");
-            auto now = std::chrono::steady_clock::now();
-            m_events.update_ready_timers(now);
-            while (auto coro = m_events.pop_ready_timer())
+            auto suspended_coro = m_context.coro;
+            m_context.coro = nullptr;
+            if (!suspended_coro)
             {
-                TRACE("Resuming task");
-                coro.resume();
+                TRACE("No more events to process, exiting scheduler loop");
+                throw std::runtime_error("No more events to process");
             }
 
-            if (!m_events.empty())
+            auto payload = std::move(m_context.payload);
+            m_context.payload = {};
+
+            switch (payload.index())
             {
-                auto timeout = m_events.time_until_next_timer(now);
-                TRACE("Polling with timeout: " << timeout.count() << " µs");
-                m_poller.poll(timeout);
-                TRACE("Polled events");
+                case context::none:
+                    TRACE("Payload isn't set");
+                    throw std::runtime_error("Payload isn't set");
+
+                case context::init:
+                    TRACE("Processing init");
+                    m_ready_coros.push(suspended_coro);
+                    break;
+
+                case context::finalize:
+                    TRACE("Processing finalize");
+                    return;
+
+                case context::timer:
+                {
+                    TRACE("Processing timer");
+                    time_point_t tp = std::get<context::timer>(payload).tp;
+                    m_timer_queue.add(tp, suspended_coro);
+                    break;
+                }
+                case context::io:
+                {
+                    TRACE("Processing IO event");
+                    io_op op = std::get<context::io>(payload).operation;
+                    m_poller.add(io_op { op.type, op.fd }, suspended_coro);
+                    break;
+                }
+                default:
+                    TRACE("Unknown event type");
+                    throw std::runtime_error("Unknown event type");
             }
+
+            ready_sink ready { &m_ready_coros };
+            while (m_ready_coros.empty())
+            {
+                TRACE("No ready coroutines, polling timers and IO events");
+                auto tp = m_timer_queue.poll(ready);
+                auto now = clock_t::now();
+                auto duration = (tp > now) ? tp - now : clock_t::duration::zero();
+                if (m_ready_coros.empty() && duration == clock_t::duration::zero())
+                    duration = std::chrono::seconds(24 * 3600); // lets wait day by day
+                m_poller.poll(ready, duration);
+            }
+
+            TRACE("Resuming coroutine");
+            auto coro_to_resume = m_ready_coros.front();
+            m_ready_coros.pop();
+            coro_to_resume.resume();
         }
+        TRACE("Ending scheduler loop");
     }
 
 private:
-    event_queue m_events;
+    context m_context;
     Poller m_poller;
+    timer_queue m_timer_queue;
+
+    std::queue<std::coroutine_handle<>> m_ready_coros;
 };
 
 } // namespace co1
