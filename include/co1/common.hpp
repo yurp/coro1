@@ -9,7 +9,7 @@
 #include <iostream>
 #include <chrono>
 #define TRACE(msg) (std::cerr << "[" << \
-    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() \
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() \
     << " " << __FILE_NAME__ << ":" << __LINE__ << "] " << msg << std::endl)
 #else
 #define TRACE(msg) ((void)0)
