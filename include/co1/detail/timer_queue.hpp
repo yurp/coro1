@@ -7,12 +7,9 @@
 
 #include <chrono>
 #include <coroutine>
-#include <ranges>
-#include <vector>
-#include <utility>
 #include <queue>
 
-namespace co1
+namespace co1::detail
 {
 
 class timer_queue
@@ -35,12 +32,21 @@ public:
         TRACE("Task put to sleep till " << duration_cast<milliseconds>(time_point.time_since_epoch()).count() << " ms");
     }
 
-    /// returns time point of the next timer or time_point_t::max() if no timers are scheduled
-    time_point_t poll(ready_sink& ready)
+    bool empty() const noexcept
+    {
+        return m_timers.empty();
+    }
+
+    /// returns:
+    /// - queue is empty  -> max()
+    /// - no ready timers -> time_point of the next timer
+    /// - some ready timers -> min()
+    time_point_t poll(ready_sink_t& ready)
     {
         using namespace std::chrono;
 
         time_point_t now = clock_t::now();
+        time_point_t next = clock_t::time_point::max();
         while (!m_timers.empty() && m_timers.top().time <= now)
         {
             auto [ tp, coro ] = m_timers.top();
@@ -48,12 +54,17 @@ public:
             TRACE("Waking up timer task scheduled for " << duration_cast<milliseconds>(tp.time_since_epoch()).count()
                                                         << " ms");
             ready.push(coro);
+            next = clock_t::time_point::min();
         }
-        return m_timers.empty() ? clock_t::now() : m_timers.top().time;
+
+        if (next != clock_t::time_point::min() && !m_timers.empty())
+            next = m_timers.top().time;
+
+        return next;
     }
 
 private:
     std::priority_queue<timer> m_timers;
 };
 
-} // namespace co1
+} // namespace co1::detail

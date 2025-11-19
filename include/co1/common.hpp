@@ -7,7 +7,10 @@
 
 #ifdef CO1_ENABLE_TRACE
 #include <iostream>
-#define TRACE(msg) (std::cerr << msg << std::endl)
+#include <chrono>
+#define TRACE(msg) (std::cerr << "[" << \
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() \
+    << " " << __FILE_NAME__ << ":" << __LINE__ << "] " << msg << std::endl)
 #else
 #define TRACE(msg) ((void)0)
 #endif
@@ -37,14 +40,23 @@ struct io_op
     fd_t fd;
 };
 
-class ready_sink
+class sleep
 {
 public:
-    ready_sink(std::queue<std::coroutine_handle<>>* ready_coros = nullptr) : m_ready_coros(ready_coros) { }
-    void push(std::coroutine_handle<> coro) { m_ready_coros->push(coro); }
+    sleep(std::chrono::milliseconds duration) : m_until(clock_t::now() + duration) { }
+    sleep(clock_t::time_point until) : m_until(until) { }
+    time_point_t until() const { return m_until; }
 
 private:
-    std::queue<std::coroutine_handle<>>* m_ready_coros;
+    time_point_t m_until;
 };
+
+namespace detail
+{
+
+using coro_queue_t = std::queue<std::coroutine_handle<>>;
+using ready_sink_t = coro_queue_t;
+
+} // namespace detail
 
 } // namespace co1

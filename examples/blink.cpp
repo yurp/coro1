@@ -2,6 +2,7 @@
 // Copyright (c) 2025 Iurii Pelykh
 
 #include <co1/scheduler.hpp>
+#include <co1/core_awaitable.hpp>
 #include <co1/backend/select.hpp>
 
 #include <iostream>
@@ -20,9 +21,9 @@ co1::task<int> async_main()
     for (size_t i = 0; i < 5; ++i)
     {
         std::cout << "LED ON: " << now().count() << std::endl;
-        co_await 1s;
+        co_await co1::sleep(1s);
         std::cout << "LED OFF: " << now().count() << std::endl;
-        co_await 1s;
+        co_await co1::sleep(1s);
     }
 
     std::cout << "Blinking completed" << std::endl;
@@ -31,5 +32,6 @@ co1::task<int> async_main()
 
 int main()
 {
-    return select_scheduler{}.start(async_main);
+    select_scheduler{}.start(async_main());
+    return 0;
 }
