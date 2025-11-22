@@ -16,25 +16,25 @@ struct promise_base
     struct final_awaiter
     {
         bool await_ready() const noexcept { return false; }
-        std::coroutine_handle<> await_suspend(std::coroutine_handle<> coro) noexcept
+
+        template <typename T>
+        std::coroutine_handle<> await_suspend(std::coroutine_handle<T> coro) noexcept
         {
-            if (m_parent)
+            if (coro.promise().m_parent)
             {
                 TRACE("Resuming parent coroutine");
-                return m_parent;
+                return coro.promise().m_parent;
             }
             TRACE("Scheduling finalized coroutine");
-            m_scheduler->m_finalized_coros.push(coro);
+            coro.promise().m_scheduler->m_finalized_coros.push(coro);
             return std::noop_coroutine();
         }
-        void await_resume() noexcept { }
 
-        detail::scheduler* m_scheduler;
-        std::coroutine_handle<> m_parent;
+        void await_resume() noexcept { }
     };
 
     std::suspend_always initial_suspend() noexcept { return {}; }
-    final_awaiter final_suspend() noexcept { return final_awaiter { m_scheduler, m_parent }; }
+    final_awaiter final_suspend() noexcept { return {}; }
     void unhandled_exception() { std::terminate(); }
 
     detail::scheduler* m_scheduler = nullptr;

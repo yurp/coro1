@@ -11,7 +11,7 @@ namespace co1
 {
 
 template <typename T = void>
-class task
+class [[nodiscard]] task
 {
 public:
     using promise_type = detail::promise<T>;
