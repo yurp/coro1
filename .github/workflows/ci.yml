@@ -8,18 +8,59 @@ on:
 
 jobs:
   build-and-test:
+    name: ${{ matrix.compiler }} / ${{ matrix.build }}
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [ gcc, clang ]
+        build: [ Debug, Release ]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y catch2
+          if [[ "${{ matrix.compiler }}" == "clang" ]]; then
+            sudo apt-get install -y clang;
+          fi
+
+      - name: Select compiler
+        run: |
+          if [[ "${{ matrix.compiler }}" == "clang" ]]; then
+            sudo update-alternatives --set cc /usr/bin/clang;
+            sudo update-alternatives --set c++ /usr/bin/clang++;
+          fi
+
       - name: Configure
-        run: cmake -S . -B build -DCO1_BUILD_TESTS=ON
+        run: |
+          echo "::group::Configure"
+          export CXXFLAGS='-fsanitize=address,undefined -Wall -Wextra'
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build }} \
+            -DCMAKE_COMPILE_WARNING_AS_ERROR=ON \
+            -DCO1_BUILD_TESTS=ON
+          echo "::endgroup::"
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: |
+          echo "::group::Build"
+          cmake --build build --parallel
+          echo "::endgroup::"
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: |
+          echo "::group::Test"
+          ctest --test-dir build --output-on-failure
+          echo "::endgroup::"
 
+      - name: Upload logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: build/Testing/Temporary

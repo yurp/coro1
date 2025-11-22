@@ -22,6 +22,14 @@ struct poller
 
 struct scheduler
 {
+    explicit scheduler(poller p)
+        : m_poller(std::move(p))
+        , m_timer_queue {}
+        , m_ready_coros {}
+        , m_finalized_coros {}
+    {
+    }
+
     poller m_poller;
     timer_queue m_timer_queue;
     coro_queue_t m_ready_coros;

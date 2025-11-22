@@ -64,7 +64,7 @@ public:
         }
 
 
-        auto it = std::remove_if(m_ops.begin(), m_ops.end(), [this, &read_fds, &write_fds, &ready](const auto& e)
+        auto it = std::remove_if(m_ops.begin(), m_ops.end(), [&read_fds, &write_fds, &ready](const auto& e)
         {
             bool triggered = (e.first.type == io_type::read && FD_ISSET(e.first.fd, &read_fds)) ||
                              (e.first.type == io_type::write && FD_ISSET(e.first.fd, &write_fds));

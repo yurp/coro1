@@ -13,15 +13,7 @@ add_subdirectory(examples)
 option(CO1_BUILD_TESTS "Build unit tests" ON)
 
 if (CO1_BUILD_TESTS)
-    include(FetchContent)
-
-    FetchContent_Declare(
-        Catch2
-        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-        GIT_TAG        v3.4.0
-    )
-
-    FetchContent_MakeAvailable(Catch2)
+    find_package(Catch2 3 REQUIRED)
 
     enable_testing()
 
