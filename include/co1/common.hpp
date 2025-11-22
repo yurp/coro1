@@ -3,8 +3,6 @@
 
 #pragma once
 
-#define CO1_ENABLE_TRACE
-
 #ifdef CO1_ENABLE_TRACE
 #include <iostream>
 #include <chrono>

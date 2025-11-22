@@ -17,7 +17,7 @@ co1::task<void> logged_sleep(const std::string& tag, std::chrono::seconds durati
     co_await co1::sleep(duration);
 }
 
-co1::task<int> async_main()
+co1::task<void> async_main()
 {
     using namespace std::chrono_literals;
     for (size_t i = 0; i < 5; ++i)
@@ -27,7 +27,6 @@ co1::task<int> async_main()
     }
 
     std::cout << "Blinking completed" << std::endl;
-    co_return 0;
 }
 
 int main()

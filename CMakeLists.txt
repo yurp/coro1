@@ -5,12 +5,16 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(CO1_BUILD_TESTS "Build unit tests" OFF)
+option(CO1_ENABLE_TRACE "Enable tracing functionality" OFF)
+
 add_library(co1 INTERFACE)
 target_include_directories(co1 INTERFACE include)
+if(CO1_ENABLE_TRACE)
+    target_compile_definitions(co1 INTERFACE CO1_ENABLE_TRACE)
+endif()
 
 add_subdirectory(examples)
-
-option(CO1_BUILD_TESTS "Build unit tests" ON)
 
 if (CO1_BUILD_TESTS)
     find_package(Catch2 3 REQUIRED)
