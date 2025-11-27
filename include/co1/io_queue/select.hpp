@@ -17,40 +17,40 @@ class select
 public:
     static constexpr size_t RESERVED_IOPS_COUNT = 16;
 
-    select() { m_iops.reserve(RESERVED_IOPS_COUNT); }
+    select() { m_iows.reserve(RESERVED_IOPS_COUNT); }
 
-    void add(const io_op& iop, std::coroutine_handle<> coro) { m_iops.emplace_back(iop, coro); }
+    void add(const io_wait& iow, std::coroutine_handle<> coro) { m_iows.emplace_back(iow, coro); }
 
-    [[nodiscard]] bool empty() const noexcept { return m_iops.empty(); }
+    [[nodiscard]] bool empty() const noexcept { return m_iows.empty(); }
     template <typename Rep, typename Period>
     std::error_code poll(detail::ready_sink_t& ready, std::chrono::duration<Rep, Period> timeout)
     {
         using namespace std::chrono;
 
-        TRACE("Monitoring " << m_iops.size() << " file descriptors, timeout: "
+        TRACE("Monitoring " << m_iows.size() << " file descriptors, timeout: "
                             << duration_cast<milliseconds>(timeout).count() << " ms");
         fd_set read_fds;
         fd_set write_fds;
         FD_ZERO(&read_fds);
         FD_ZERO(&write_fds);
         int max_fd = -1;
-        for (const auto& [ op, coro ] : m_iops)
+        for (const auto& [ iow, coro ] : m_iows)
         {
-            if (op.fd >= 0)
+            if (iow.fd >= 0)
             {
-                if (op.type == io_type::read)
+                if (iow.type == io_type::read)
                 {
-                    FD_SET(op.fd, &read_fds);
+                    FD_SET(iow.fd, &read_fds);
                 }
-                else if (op.type == io_type::write)
+                else if (iow.type == io_type::write)
                 {
-                    FD_SET(op.fd, &write_fds);
+                    FD_SET(iow.fd, &write_fds);
                 }
                 else
                 {
                     return std::make_error_code(std::errc::invalid_argument);
                 }
-                max_fd = std::max(max_fd, op.fd);
+                max_fd = std::max(max_fd, iow.fd);
             }
         }
 
@@ -69,26 +69,25 @@ public:
         }
 
 
-        auto iter = std::remove_if(m_iops.begin(), m_iops.end(),
-            [&read_fds, &write_fds, &ready](const auto& iop)
+        auto iter = std::remove_if(m_iows.begin(), m_iows.end(),
+            [&read_fds, &write_fds, &ready](const auto& iow)
             {
-                bool triggered = (iop.first.type == io_type::read &&
-                                  FD_ISSET(iop.first.fd, &read_fds)) ||
-                                 (iop.first.type == io_type::write &&
-                                  FD_ISSET(iop.first.fd, &write_fds));
+                bool triggered = (iow.first.type == io_type::read &&
+                                  FD_ISSET(iow.first.fd, &read_fds)) ||
+                                 (iow.first.type == io_type::write &&
+                                  FD_ISSET(iow.first.fd, &write_fds));
                 if (triggered)
                 {
-                    ready.push(iop.second);
+                    ready.push(iow.second);
                 }
                 return triggered;
             });
-        m_iops.erase(iter, m_iops.end());
-
+        m_iows.erase(iter, m_iows.end());
         return std::error_code{};
     }
 
 private:
-    std::vector<std::pair<io_op, std::coroutine_handle<>>> m_iops;
+    std::vector<std::pair<io_wait, std::coroutine_handle<>>> m_iows;
 };
 
-} // namespace co1::backend::select
+} // namespace co1::io_queue

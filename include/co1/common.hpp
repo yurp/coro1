@@ -34,17 +34,17 @@ enum class io_type : char
     write = 2,
 };
 
-struct io_op
+struct io_wait
 {
     io_type type;
     fd_t fd;
 };
 
-class sleep
+class wait
 {
 public:
-    sleep(std::chrono::milliseconds duration) : m_until(clock_t::now() + duration) { }
-    sleep(clock_t::time_point until) : m_until(until) { }
+    wait(std::chrono::milliseconds duration) : m_until(clock_t::now() + duration) { }
+    wait(clock_t::time_point until) : m_until(until) { }
     [[nodiscard]] time_point_t until() const { return m_until; }
 
 private:

@@ -10,50 +10,50 @@
 namespace co1
 {
 
-struct sleep_awaiter
+struct time_awaiter
 {
 public:
-    sleep_awaiter(sleep slp) : m_sleep(slp)  { }
+    time_awaiter(wait time_wait) : m_time_wait(time_wait)  { }
 
     [[nodiscard]] bool await_ready() noexcept { return false; }
 
     template <typename T>
     void await_suspend(std::coroutine_handle<detail::promise<T>> coro) noexcept
     {
-        coro.promise().m_scheduler->m_timer_queue.add(m_sleep.until(), coro);
+        coro.promise().m_scheduler->m_timer_queue.add(m_time_wait.until(), coro);
     }
     void await_resume() noexcept { }
 
 private:
-    sleep m_sleep;
+    wait m_time_wait;
 };
 
-sleep_awaiter operator co_await(sleep slp)
+time_awaiter operator co_await(wait time_wait)
 {
-    return { slp };
+    return { time_wait };
 }
 
 struct io_awaiter
 {
 public:
-    io_awaiter(io_op iop) : m_io_op(iop)  { }
+    io_awaiter(io_wait iow) : m_io_wait(iow)  { }
 
     [[nodiscard]] bool await_ready() const noexcept { return false; }
 
     template <typename T>
     void await_suspend(std::coroutine_handle<detail::promise<T>> coro) noexcept
     {
-        coro.promise().m_scheduler->m_io_queue.add(m_io_op, coro);
+        coro.promise().m_scheduler->m_io_queue.add(m_io_wait, coro);
     }
     void await_resume() noexcept { }
 
 private:
-    io_op m_io_op;
+    io_wait m_io_wait;
 };
 
-io_awaiter operator co_await(io_op iop)
+io_awaiter operator co_await(io_wait iow)
 {
-    return { iop };
+    return { iow };
 }
 
 template <typename T>

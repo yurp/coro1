@@ -16,9 +16,9 @@ struct io_queue_wrapper
 {
     template <typename IoQueue>
     io_queue_wrapper(IoQueue& queue)
-        : add([&queue](io_op iop, std::coroutine_handle<> coro) { queue.add(iop, coro); }) { }
+        : add([&queue](io_wait iow, std::coroutine_handle<> coro) { queue.add(iow, coro); }) { }
 
-    std::function<void(io_op, std::coroutine_handle<>)> add;
+    std::function<void(io_wait, std::coroutine_handle<>)> add;
 };
 
 struct scheduler

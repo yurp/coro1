@@ -13,7 +13,7 @@ co1::task<void> logged_sleep(std::string tag, std::chrono::seconds duration)
     using namespace std::chrono;
     auto now = duration_cast<seconds>(steady_clock::now().time_since_epoch());
     std::cout << tag << now.count() << std::endl;
-    co_await co1::sleep(duration);
+    co_await co1::wait(duration);
 }
 
 co1::task<void> async_main()
