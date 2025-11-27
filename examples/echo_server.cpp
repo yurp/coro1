@@ -10,7 +10,7 @@
 #include "socket_helpers.hpp"
 
 #include <co1/awaiters.hpp>
-#include <co1/backend/select.hpp>
+#include <co1/io_queue/select.hpp>
 #include <co1/scheduler.hpp>
 
 #include <fcntl.h>
@@ -21,7 +21,7 @@
 #include <cstring>
 #include <iostream>
 
-using select_scheduler = co1::scheduler<co1::backend::select>;
+using select_scheduler = co1::scheduler<co1::io_queue::select>;
 
 class client_socket
 {

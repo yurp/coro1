@@ -13,13 +13,13 @@
 namespace co1
 {
 
-template <typename Poller>
+template <typename IoQueue>
 class scheduler
 {
 public:
     scheduler()
-        : m_poller()
-        , m_impl(m_poller)
+        : m_io_queue()
+        , m_impl(m_io_queue)
     {
     }
 
@@ -54,7 +54,7 @@ public:
             }
 
             if (m_impl.m_ready_coros.empty() && m_impl.m_finalized_coros.empty() &&
-                m_impl.m_timer_queue.empty() && m_poller.empty())
+                m_impl.m_timer_queue.empty() && m_io_queue.empty())
                 break;
 
             while (m_impl.m_ready_coros.empty())
@@ -63,7 +63,7 @@ public:
                 auto tp = m_impl.m_timer_queue.poll(m_impl.m_ready_coros);
                 auto now = clock_t::now();
                 auto duration = (m_impl.m_ready_coros.empty() && tp > now) ? tp - now : clock_t::duration::zero();
-                m_poller.poll(m_impl.m_ready_coros, duration);
+                m_io_queue.poll(m_impl.m_ready_coros, duration);
             }
 
             auto coro_to_resume = m_impl.m_ready_coros.front();
@@ -74,7 +74,7 @@ public:
     }
 
 private:
-    Poller m_poller; ///< customization point for IO polling
+    IoQueue m_io_queue; ///< customization point for IO
     detail::scheduler m_impl;
 };
 

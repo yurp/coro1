@@ -43,7 +43,7 @@ public:
     template <typename T>
     void await_suspend(std::coroutine_handle<detail::promise<T>> coro) noexcept
     {
-        coro.promise().m_scheduler->m_poller.add(m_io_op, coro);
+        coro.promise().m_scheduler->m_io_queue.add(m_io_op, coro);
     }
     void await_resume() noexcept { }
 

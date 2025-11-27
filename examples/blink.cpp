@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Iurii Pelykh
 
-#include <co1/scheduler.hpp>
 #include <co1/awaiters.hpp>
-#include <co1/backend/select.hpp>
+#include <co1/scheduler.hpp>
+#include <co1/io_queue/select.hpp>
 
 #include <iostream>
 
-using select_scheduler = co1::scheduler<co1::backend::select>;
-
+using select_scheduler = co1::scheduler<co1::io_queue::select>;
 co1::task<void> logged_sleep(const std::string& tag, std::chrono::seconds duration)
 {
     using namespace std::chrono;
