@@ -17,12 +17,35 @@ public:
     using promise_type = detail::promise<T>;
     using handle_t = std::coroutine_handle<promise_type>;
 
-    task(handle_t h) : m_handle(h) { }
+    task(handle_t handle) : m_handle(handle) { }
+
+    task(const task& ) = delete;
+    task& operator=(const task& ) = delete;
+
+    task(task&& other) noexcept
+        : m_handle(std::exchange(other.m_handle, nullptr))
+    {
+    }
+
+    task& operator=(task&& other) noexcept
+    {
+        if (this != &other)
+        {
+            if (m_handle)
+            {
+                m_handle.destroy();
+            }
+            m_handle = std::exchange(other.m_handle, nullptr);
+        }
+        return *this;
+    }
 
     ~task()
     {
         if (m_handle)
+        {
             m_handle.destroy();
+        }
     }
 
     handle_t release() { return std::exchange(m_handle, nullptr); }

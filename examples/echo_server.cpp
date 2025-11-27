@@ -18,6 +18,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <array>
 #include <cstring>
 #include <iostream>
 
@@ -50,7 +51,9 @@ public:
     ~client_socket()
     {
         if (m_socket_fd >= 0)
+        {
             ::close(m_socket_fd);
+        }
     }
 
     operator bool() const noexcept { return m_socket_fd >= 0; }
@@ -77,13 +80,40 @@ class server_socket
 {
 public:
     explicit server_socket(int port)
-        : m_socket_fd(-1)
     {
-        int s = create_socket();
-        bind_socket(s, port);
-        listen_socket(s);
-        m_socket_fd = s;
+        int socket_fd = create_socket();
+        bind_socket(socket_fd, port);
+        listen_socket(socket_fd);
+        m_socket_fd = socket_fd;
     }
+
+    server_socket(const server_socket& ) = delete;
+    server_socket& operator=(const server_socket& other) = delete;
+
+    server_socket(server_socket&& other) noexcept
+        : m_socket_fd(other.m_socket_fd)
+    {
+        other.m_socket_fd = -1;
+    }
+
+    server_socket& operator=(server_socket&& other) noexcept
+    {
+        if (this != &other)
+        {
+            m_socket_fd = other.m_socket_fd;
+            other.m_socket_fd = -1;
+        }
+        return *this;
+    }
+
+    ~server_socket()
+    {
+        if (m_socket_fd >= 0)
+        {
+            ::close(m_socket_fd);
+        }
+    }
+
 
     co1::task<client_socket> accept()
     {
@@ -93,58 +123,74 @@ public:
         co_return client_socket(client_s);
     }
 
-    ~server_socket()
-    {
-        if (m_socket_fd >= 0)
-            ::close(m_socket_fd);
-    }
+
 
 private:
-    co1::fd_t m_socket_fd;
+    co1::fd_t m_socket_fd = -1;
 };
 
 co1::task<void> process_client(client_socket client)
 {
+    static constexpr size_t BUFFER_SIZE = 1024;
+
     std::cout << "starting client handler" << std::endl;
-    char buffer[1024];
-    ::strcpy(buffer, "ECHO: ");
+    std::array<char, BUFFER_SIZE> buffer {};
+    ::strncpy(buffer.data(), "ECHO: ", buffer.size());
     int offs = sizeof("ECHO: ") - 1;
     while (true)
     {
-        int n = co_await client.read_some(buffer + offs, sizeof(buffer) - offs);
-        if (n < 0)
+        int read_cnt = co_await client.read_some(buffer.data() + offs, buffer.size() - offs);
+        if (read_cnt < 0)
+        {
             continue;
-        else if (n == 0)
+        }
+        if (read_cnt == 0)
+        {
             break;
-        std::cout << "received " << n << " bytes from socket" << std::endl;
+        }
+        std::cout << "received " << read_cnt << " bytes from socket" << std::endl;
 
-        n += offs; // account for "ECHO: "
-        int sent = co_await client.write_some(buffer, n);
-        if (sent < 0)
+        read_cnt += offs; // account for "ECHO: "
+        int sent_cnt = co_await client.write_some(buffer.data(), read_cnt);
+        if (sent_cnt < 0)
+        {
             continue;
-        std::cout << "sent " << sent << " bytes to socket" << std::endl;
+        }
+        std::cout << "sent " << sent_cnt << " bytes to socket" << std::endl;
     }
     std::cout << "client disconnected, socket" << std::endl;
 }
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-reference-coroutine-parameters)
 co1::task<void> async_main(select_scheduler& scheduler)
 {
-    server_socket server(12345);
+    static constexpr int PORT = 12345;
+    static constexpr size_t MAX_CLIENTS = 5;
+
+    server_socket server(PORT);
     std::vector<co1::task<void>> client_handlers;
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < MAX_CLIENTS; ++i)
     {
-        std::cout << "waiting for incoming connections on port 12345..." << std::endl;
-        auto client = co_await server.accept();
-        if (!client)
-            continue;
-        std::cout << "accepted connection" << std::endl;
-        scheduler.spawn(process_client(std::move(client)));
+        std::cout << "waiting for incoming connections on port " << PORT << "..." << std::endl;
+        if (auto client = co_await server.accept())
+        {
+            std::cout << "accepted connection" << std::endl;
+            scheduler.spawn(process_client(std::move(client)));
+        }
     }
 }
 
 int main()
 {
-    select_scheduler scheduler;
-    scheduler.start(async_main(scheduler));
+    try
+    {
+        select_scheduler scheduler;
+        scheduler.start(async_main(scheduler));
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+
     return 0;
 }

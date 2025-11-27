@@ -17,7 +17,7 @@ endif()
 add_subdirectory(examples)
 
 if (CO1_BUILD_TESTS)
-    find_package(Catch2 3 REQUIRED)
+    find_package(Catch2 3.4 REQUIRED)
 
     enable_testing()
 

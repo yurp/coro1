@@ -32,7 +32,7 @@ public:
         TRACE("Task put to sleep till " << duration_cast<milliseconds>(time_point.time_since_epoch()).count() << " ms");
     }
 
-    bool empty() const noexcept
+    [[nodiscard]] bool empty() const noexcept
     {
         return m_timers.empty();
     }
@@ -58,7 +58,9 @@ public:
         }
 
         if (next != clock_t::time_point::min() && !m_timers.empty())
+        {
             next = m_timers.top().time;
+        }
 
         return next;
     }

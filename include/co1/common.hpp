@@ -6,9 +6,11 @@
 #ifdef CO1_ENABLE_TRACE
 #include <iostream>
 #include <chrono>
+// NOLINTBEGIN(cppcoreguidelines-macro-usage, bugprone-macro-parentheses)
 #define TRACE(msg) (std::cerr << "[" << \
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() \
     << " " << __FILE_NAME__ << ":" << __LINE__ << "] " << msg << std::endl)
+// NOLINTEND(cppcoreguidelines-macro-usage, bugprone-macro-parentheses)
 #else
 #define TRACE(msg) ((void)0)
 #endif
@@ -43,7 +45,7 @@ class sleep
 public:
     sleep(std::chrono::milliseconds duration) : m_until(clock_t::now() + duration) { }
     sleep(clock_t::time_point until) : m_until(until) { }
-    time_point_t until() const { return m_until; }
+    [[nodiscard]] time_point_t until() const { return m_until; }
 
 private:
     time_point_t m_until;

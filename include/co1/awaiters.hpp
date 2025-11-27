@@ -13,9 +13,9 @@ namespace co1
 struct sleep_awaiter
 {
 public:
-    sleep_awaiter(sleep s) : m_sleep(s)  { }
+    sleep_awaiter(sleep slp) : m_sleep(slp)  { }
 
-    bool await_ready() const noexcept { return false; }
+    [[nodiscard]] bool await_ready() noexcept { return false; }
 
     template <typename T>
     void await_suspend(std::coroutine_handle<detail::promise<T>> coro) noexcept
@@ -28,17 +28,17 @@ private:
     sleep m_sleep;
 };
 
-sleep_awaiter operator co_await(sleep s)
+sleep_awaiter operator co_await(sleep slp)
 {
-    return sleep_awaiter(s);
+    return { slp };
 }
 
 struct io_awaiter
 {
 public:
-    io_awaiter(io_op op) : m_io_op(std::move(op))  { }
+    io_awaiter(io_op iop) : m_io_op(iop)  { }
 
-    bool await_ready() const noexcept { return false; }
+    [[nodiscard]] bool await_ready() const noexcept { return false; }
 
     template <typename T>
     void await_suspend(std::coroutine_handle<detail::promise<T>> coro) noexcept
@@ -51,9 +51,9 @@ private:
     io_op m_io_op;
 };
 
-io_awaiter operator co_await(io_op op)
+io_awaiter operator co_await(io_op iop)
 {
-    return io_awaiter(std::move(op));
+    return { iop };
 }
 
 template <typename T>
@@ -62,7 +62,7 @@ class task_awaiter
 public:
     explicit task_awaiter(task<T>::handle_t handle) : m_handle(handle) { }
 
-    bool await_ready() const noexcept { return false; }
+    [[nodiscard]] bool await_ready() const noexcept { return false; }
 
     template<typename U>
     auto await_suspend(std::coroutine_handle<detail::promise<U>> parent) noexcept
@@ -84,9 +84,15 @@ public:
         }
         else
         {
-            auto v = std::move(*m_handle.promise().m_value);
+            auto& promise_val = m_handle.promise().m_value;
+            if (promise_val.has_value())
+            {
+                auto value = std::move(*promise_val);
+                m_handle.destroy();
+                return value;
+            }
             m_handle.destroy();
-            return v;
+            throw std::runtime_error("Attempt to co_await a task with no return value");
         }
     }
 
@@ -95,7 +101,11 @@ private:
 };
 
 template <typename T>
-task_awaiter<T> operator co_await(task<T>&& t) noexcept { return task_awaiter<T> { t.release() }; }
+task_awaiter<T> operator co_await(task<T>&& awaited_task) noexcept
+{
+    auto moved_task = std::move(awaited_task);
+    return task_awaiter<T> { moved_task.release() };
+}
 
 
 } // namespace co1

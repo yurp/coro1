@@ -8,7 +8,7 @@
 #include <iostream>
 
 using select_scheduler = co1::scheduler<co1::io_queue::select>;
-co1::task<void> logged_sleep(const std::string& tag, std::chrono::seconds duration)
+co1::task<void> logged_sleep(std::string tag, std::chrono::seconds duration)
 {
     using namespace std::chrono;
     auto now = duration_cast<seconds>(steady_clock::now().time_since_epoch());
@@ -19,7 +19,11 @@ co1::task<void> logged_sleep(const std::string& tag, std::chrono::seconds durati
 co1::task<void> async_main()
 {
     using namespace std::chrono_literals;
-    for (size_t i = 0; i < 5; ++i)
+
+    constexpr size_t BLINK_COUNT = 5;
+    std::cout << "Starting blinking for " << BLINK_COUNT << " times" << std::endl;
+
+    for (size_t i = 0; i < BLINK_COUNT; ++i)
     {
         co_await logged_sleep("LED ON:  ", 1s);
         co_await logged_sleep("LED OFF: ", 1s);
@@ -30,6 +34,13 @@ co1::task<void> async_main()
 
 int main()
 {
-    select_scheduler{}.start(async_main());
+    try
+    {
+        select_scheduler{}.start(async_main());
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
     return 0;
 }

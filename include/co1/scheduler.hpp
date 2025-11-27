@@ -24,18 +24,19 @@ public:
     }
 
     template <typename T>
-    void start(task<T>&& t)
+    void start(task<T>&& task_to_start)
     {
-        spawn(std::move(t));
+        spawn(std::move(task_to_start));
         run();
     }
 
     template <typename T>
-    void spawn(task<T>&& t)
+    void spawn(task<T>&& task_to_spawn)
     {
-        auto h = t.release();
-        h.promise().m_scheduler = &m_impl;
-        m_impl.m_ready_coros.push(h);
+        auto moved_task = std::move(task_to_spawn);
+        auto coro_handle = moved_task.release();
+        coro_handle.promise().m_scheduler = &m_impl;
+        m_impl.m_ready_coros.push(coro_handle);
     }
 
     void run()
@@ -55,14 +56,18 @@ public:
 
             if (m_impl.m_ready_coros.empty() && m_impl.m_finalized_coros.empty() &&
                 m_impl.m_timer_queue.empty() && m_io_queue.empty())
+            {
                 break;
+            }
 
             while (m_impl.m_ready_coros.empty())
             {
                 TRACE("No ready coroutines, polling timers and IO events");
-                auto tp = m_impl.m_timer_queue.poll(m_impl.m_ready_coros);
+                auto time_point = m_impl.m_timer_queue.poll(m_impl.m_ready_coros);
                 auto now = clock_t::now();
-                auto duration = (m_impl.m_ready_coros.empty() && tp > now) ? tp - now : clock_t::duration::zero();
+                auto duration = (m_impl.m_ready_coros.empty() && time_point > now) ?
+                                    time_point - now :
+                                    clock_t::duration::zero();
                 m_io_queue.poll(m_impl.m_ready_coros, duration);
             }
 

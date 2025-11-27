@@ -15,7 +15,7 @@ struct promise_base
 {
     struct final_awaiter
     {
-        bool await_ready() const noexcept { return false; }
+        [[nodiscard]] bool await_ready() const noexcept { return false; }
 
         template <typename T>
         std::coroutine_handle<> await_suspend(std::coroutine_handle<T> coro) noexcept
@@ -32,6 +32,11 @@ struct promise_base
 
         void await_resume() noexcept { }
     };
+
+    promise_base(const promise_base& ) = delete;
+    promise_base& operator=(const promise_base& ) = delete;
+    promise_base(promise_base&& ) = delete;
+    promise_base& operator=(promise_base&& ) = delete;
 
     std::suspend_always initial_suspend() noexcept { return {}; }
     final_awaiter final_suspend() noexcept { return {}; }
@@ -51,7 +56,7 @@ struct promise : promise_base
     using handle_t = std::coroutine_handle<promise>;
 
     auto get_return_object() { return handle_t::from_promise(*this); }
-    void return_value(T&& v) noexcept { m_value = std::forward<T>(v); }
+    void return_value(auto&& val) noexcept { m_value = std::forward<T>(val); }
 
     std::optional<T> m_value;
 };
