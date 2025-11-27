@@ -169,7 +169,7 @@ co1::task<void> async_main(select_scheduler& scheduler)
 
     server_socket server(PORT);
     std::vector<co1::task<void>> client_handlers;
-    for (int i = 0; i < MAX_CLIENTS; ++i)
+    for (size_t i = 0; i < MAX_CLIENTS; ++i)
     {
         std::cout << "waiting for incoming connections on port " << PORT << "..." << std::endl;
         if (auto client = co_await server.accept())
