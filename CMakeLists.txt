@@ -21,7 +21,10 @@ if (CO1_BUILD_TESTS)
 
     enable_testing()
 
-    file(GLOB TEST_SOURCES tests/test_*.cpp)
+    set(TEST_SOURCES
+        tests/test_io_queue_select.cpp
+        tests/test_timer_queue.cpp
+    )
 
     add_executable(co1_tests ${TEST_SOURCES})
     target_link_libraries(co1_tests PRIVATE co1 Catch2::Catch2WithMain)

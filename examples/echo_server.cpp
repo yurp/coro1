@@ -60,15 +60,21 @@ public:
 
     co1::task<int> read_some(char* buffer, size_t length)
     {
-        co1::io_wait wait_read { co1::io_type::read, m_socket_fd };
-        co_await wait_read;
+        std::error_code ecode = co_await co1::io_wait { co1::io_type::read, m_socket_fd };
+        if (ecode)
+        {
+            co_return -1;
+        }
         co_return recv_data(m_socket_fd, buffer, length);
     }
 
     co1::task<int> write_some(const char* buffer, size_t length)
     {
-        co1::io_wait wait_write { co1::io_type::write, m_socket_fd };
-        co_await wait_write;
+        std::error_code ecode = co_await co1::io_wait { co1::io_type::write, m_socket_fd };
+        if (ecode)
+        {
+            co_return -1;
+        }
         co_return send_data(m_socket_fd, buffer, length);
     }
 
@@ -114,7 +120,6 @@ public:
         }
     }
 
-
     co1::task<client_socket> accept()
     {
         co1::io_wait wait_accept { co1::io_type::read, m_socket_fd };
@@ -122,7 +127,6 @@ public:
         co1::fd_t client_s = accept_connection(m_socket_fd);
         co_return client_socket(client_s);
     }
-
 
 
 private:

@@ -19,7 +19,7 @@ class scheduler
 public:
     scheduler()
         : m_io_queue()
-        , m_impl(m_io_queue)
+        , m_impl(detail::io_queue_wrapper::make(m_io_queue))
     {
     }
 

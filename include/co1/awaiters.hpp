@@ -43,12 +43,17 @@ public:
     template <typename T>
     void await_suspend(std::coroutine_handle<detail::promise<T>> coro) noexcept
     {
-        coro.promise().m_scheduler->m_io_queue.add(m_io_wait, coro);
+        coro.promise().m_scheduler->m_io_queue.add(m_io_wait, m_error_code, coro);
     }
-    void await_resume() noexcept { }
+
+    std::error_code await_resume() noexcept
+    {
+        return m_error_code;
+    }
 
 private:
     io_wait m_io_wait;
+    std::error_code m_error_code;
 };
 
 io_awaiter operator co_await(io_wait iow)
