@@ -24,19 +24,25 @@ public:
     }
 
     template <typename T>
-    void start(task<T>&& task_to_start)
+    T start(task<T>&& task_to_start)
     {
-        spawn(std::move(task_to_start));
+        auto tsk = spawn(std::move(task_to_start));
         run();
+        return tsk.get();
     }
 
     template <typename T>
-    void spawn(task<T>&& task_to_spawn)
+    task_handle<T> spawn(task<T>&& task_to_spawn)
     {
         auto moved_task = std::move(task_to_spawn);
         auto coro_handle = moved_task.release();
+        auto ctl = std::make_shared<detail::control_block>(coro_handle);
         coro_handle.promise().m_scheduler = &m_impl;
-        m_impl.m_ready_coros.push(coro_handle);
+        coro_handle.promise().m_ctl = ctl;
+
+        m_impl.m_ready_coros.push(ctl);
+
+        return task_handle<T> { std::move(ctl) };
     }
 
     void run()
@@ -49,9 +55,7 @@ public:
             while (!m_impl.m_finalized_coros.empty())
             {
                 TRACE("Destroying finalized coroutine");
-                auto coro_to_destroy = m_impl.m_finalized_coros.front();
                 m_impl.m_finalized_coros.pop();
-                coro_to_destroy.destroy();
             }
 
             if (m_impl.m_ready_coros.empty() && m_impl.m_finalized_coros.empty() &&
@@ -73,7 +77,7 @@ public:
 
             auto coro_to_resume = m_impl.m_ready_coros.front();
             m_impl.m_ready_coros.pop();
-            coro_to_resume.resume();
+            coro_to_resume->m_active_coro.resume();
         }
         TRACE("Ending scheduler loop");
     }

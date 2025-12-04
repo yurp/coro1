@@ -25,10 +25,11 @@ co1::task<void> logged_sleep(std::string tag, std::chrono::seconds duration)
     co_await co1::wait(duration);
 }
 
-co1::task<void> async_main()
+co1::task<int> async_main()
 {
     using namespace std::chrono_literals;
 
+    constexpr int MAGIC_NUMBER = 42;
     constexpr size_t BLINK_COUNT = 5;
     std::cout << "Starting blinking for " << BLINK_COUNT << " times" << std::endl;
 
@@ -39,13 +40,15 @@ co1::task<void> async_main()
     }
 
     std::cout << "Blinking completed" << std::endl;
+    co_return MAGIC_NUMBER;
 }
 
 int main()
 {
     try
     {
-        select_scheduler{}.start(async_main());
+        int result = select_scheduler{}.start(async_main());
+        std::cout << "async_main returned: " << result << std::endl;
     }
     catch(const std::exception& e)
     {

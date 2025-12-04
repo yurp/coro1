@@ -13,15 +13,15 @@ namespace co1::detail
 {
 
 template <typename Queue, typename In, typename Out>
-void add_to_queue(void* obj, const In& input, Out& output, std::coroutine_handle<> coro)
+void add_to_queue(void* obj, const In& input, Out& output, coro_ctl ctl)
 {
     auto& io_queue = *static_cast<Queue*>(obj);
-    io_queue.add(input, output, coro);
+    io_queue.add(input, output, std::move(ctl));
 }
 
 struct io_queue_wrapper
 {
-    using add_t = void(*)(void*, const io_wait&, std::error_code&, std::coroutine_handle<>);
+    using add_t = void(*)(void*, const io_wait&, std::error_code&, coro_ctl);
 
     void* m_object;
     add_t m_add;
@@ -37,9 +37,9 @@ struct io_queue_wrapper
     }
 
     // NOLINTNEXTLINE(readability-make-member-function-const)
-    void add(const io_wait& iow, std::error_code& error_code, std::coroutine_handle<> coro)
+    void add(const io_wait& iow, std::error_code& error_code, coro_ctl ctl)
     {
-        m_add(m_object, iow, error_code, coro);
+        m_add(m_object, iow, error_code, std::move(ctl));
     }
 };
 

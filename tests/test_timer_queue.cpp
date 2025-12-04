@@ -24,7 +24,7 @@ TEST_CASE("timer_queue test", "[timer_queue]")
 
     SECTION("add and poll timer")
     {
-        test_timer_queue.add(co1::clock_t::now() + 300ms, std::noop_coroutine());
+        test_timer_queue.add(co1::clock_t::now() + 300ms, nullptr);
         REQUIRE(!test_timer_queue.empty());
 
         auto next_on_pending = test_timer_queue.poll(ready);
@@ -37,7 +37,7 @@ TEST_CASE("timer_queue test", "[timer_queue]")
         REQUIRE(test_timer_queue.empty());
         REQUIRE(next_on_ready == co1::time_point_t::min());
         REQUIRE(!ready.empty());
-        REQUIRE(ready.front() == std::noop_coroutine());
+        REQUIRE(ready.front() == nullptr);
 
         auto next_on_empty = test_timer_queue.poll(ready);
         REQUIRE(test_timer_queue.empty());

@@ -15,20 +15,19 @@ namespace co1::detail
 class timer_queue
 {
 public:
-    using coro_t = std::coroutine_handle<>;
 
     struct timer
     {
         time_point_t time;
-        coro_t coro;
+        coro_ctl ctl;
 
         bool operator<(const timer& other) const { return time > other.time; }
     };
 
-    void add(time_point_t time_point, coro_t coro)
+    void add(time_point_t time_point, coro_ctl ctl)
     {
         using namespace std::chrono;
-        m_timers.emplace(timer { time_point, coro });
+        m_timers.emplace(timer { time_point, std::move(ctl) });
         TRACE("Task put to sleep till " << duration_cast<milliseconds>(time_point.time_since_epoch()).count() << " ms");
     }
 

@@ -20,13 +20,18 @@ struct promise_base
         template <typename T>
         std::coroutine_handle<> await_suspend(std::coroutine_handle<T> coro) noexcept
         {
-            if (coro.promise().m_parent)
+            auto& promise = coro.promise();
+            if (promise.m_parent)
             {
                 TRACE("Resuming parent coroutine");
-                return coro.promise().m_parent;
+                promise.m_ctl->m_active_coro = promise.m_parent;
+                return promise.m_parent;
             }
             TRACE("Scheduling finalized coroutine");
-            coro.promise().m_scheduler->m_finalized_coros.push(coro);
+
+            auto ctl = std::move(promise.m_ctl);
+            promise.m_ctl = nullptr;
+            promise.m_scheduler->m_finalized_coros.push(std::move(ctl));
             return std::noop_coroutine();
         }
 
@@ -43,7 +48,8 @@ struct promise_base
     void unhandled_exception() { std::terminate(); }
 
     detail::scheduler* m_scheduler = nullptr;
-    std::coroutine_handle<> m_parent = nullptr;
+    std::coroutine_handle<> m_parent = nullptr; // noop_courutine if none - so no need to check for nullptr
+    coro_ctl m_ctl = nullptr;
 
 protected:
     promise_base() = default;
@@ -56,7 +62,9 @@ struct promise : promise_base
     using handle_t = std::coroutine_handle<promise>;
 
     auto get_return_object() { return handle_t::from_promise(*this); }
-    void return_value(auto&& val) noexcept { m_value = std::forward<T>(val); }
+
+    template <typename U>
+    void return_value(U&& val) noexcept { m_value = std::forward<U>(val); }
 
     std::optional<T> m_value;
 };

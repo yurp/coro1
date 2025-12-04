@@ -62,7 +62,7 @@ TEST_CASE("io_queue/select simple: empty and invalid fd scenarios", "[io_queue/s
         std::error_code fd_error;
         WHEN("adding invalid fd to the queue")
         {
-            test_select.add({ co1::io_type::read, invalid_fd }, fd_error, std::noop_coroutine());
+            test_select.add({ co1::io_type::read, invalid_fd }, fd_error, nullptr);
             THEN("element is added to the queue")
             {
                 REQUIRE(!test_select.empty());
@@ -75,7 +75,7 @@ TEST_CASE("io_queue/select simple: empty and invalid fd scenarios", "[io_queue/s
                     REQUIRE(test_select.empty());
                     REQUIRE(!ecode);
                     REQUIRE(!ready.empty());
-                    REQUIRE(ready.front() == std::noop_coroutine());
+                    REQUIRE(ready.front() == nullptr);
                     REQUIRE(fd_error == std::errc::invalid_argument);
                 }
             }
@@ -93,7 +93,7 @@ TEST_CASE("io_queue/select one fd scenarios", "[io_queue/select]")
         std::error_code fd_error;
         WHEN("adding valid fd to the queue for read")
         {
-            test_select.add({ co1::io_type::read, event_fd }, fd_error, std::noop_coroutine());
+            test_select.add({ co1::io_type::read, event_fd }, fd_error, nullptr);
             REQUIRE(!test_select.empty());
             WHEN("writing data to eventfd to make it readable and polling immediately (it is now readable)")
             {
@@ -104,7 +104,7 @@ TEST_CASE("io_queue/select one fd scenarios", "[io_queue/select]")
                     REQUIRE(test_select.empty());
                     REQUIRE(!ecode);
                     REQUIRE(!ready.empty());
-                    REQUIRE(ready.front() == std::noop_coroutine());
+                    REQUIRE(ready.front() == nullptr);
                     REQUIRE(!fd_error);
                     REQUIRE(read_eventfd(event_fd) == MAGIC_NUMBER);
                 }
@@ -126,7 +126,7 @@ TEST_CASE("io_queue/select one fd scenarios", "[io_queue/select]")
         }
         WHEN("adding valid fd to the queue for write and polling immediately (it is writable)")
         {
-            test_select.add({ co1::io_type::write, event_fd }, fd_error, std::noop_coroutine());
+            test_select.add({ co1::io_type::write, event_fd }, fd_error, nullptr);
             REQUIRE(!test_select.empty());
             std::error_code ecode = test_select.poll(ready, 100ms);
             THEN("empty queue, no errors, coro is in 'ready'")
@@ -134,7 +134,7 @@ TEST_CASE("io_queue/select one fd scenarios", "[io_queue/select]")
                 REQUIRE(test_select.empty());
                 REQUIRE(!ecode);
                 REQUIRE(!ready.empty());
-                REQUIRE(ready.front() == std::noop_coroutine());
+                REQUIRE(ready.front() == nullptr);
                 REQUIRE(!fd_error);
             }
         }
@@ -154,8 +154,8 @@ TEST_CASE("io_queue/select two fds scenarios", "[io_queue/select]")
         std::error_code fd_error2;
         WHEN("adding both fds to the queue for read")
         {
-            test_select.add({ co1::io_type::read, event_fd1 }, fd_error1, std::noop_coroutine());
-            test_select.add({ co1::io_type::read, event_fd2 }, fd_error2, std::noop_coroutine());
+            test_select.add({ co1::io_type::read, event_fd1 }, fd_error1, nullptr);
+            test_select.add({ co1::io_type::read, event_fd2 }, fd_error2, nullptr);
             REQUIRE(!test_select.empty());
             WHEN("writing data to 1st eventfd to make it readable")
             {
@@ -170,7 +170,7 @@ TEST_CASE("io_queue/select two fds scenarios", "[io_queue/select]")
                         REQUIRE(!fd_error2);
                         REQUIRE(!test_select.empty());
                         REQUIRE(!ready.empty());
-                        REQUIRE(ready.front() == std::noop_coroutine());
+                        REQUIRE(ready.front() == nullptr);
                         REQUIRE(read_eventfd(event_fd1) == MAGIC_NUMBER_1);
                     }
                     WHEN("writing data to 2nd eventfd to make it readable and polling again")
@@ -183,7 +183,7 @@ TEST_CASE("io_queue/select two fds scenarios", "[io_queue/select]")
                             REQUIRE(!fd_error2);
                             REQUIRE(test_select.empty());
                             REQUIRE(!ready.empty());
-                            REQUIRE(ready.front() == std::noop_coroutine());
+                            REQUIRE(ready.front() == nullptr);
                             REQUIRE(read_eventfd(event_fd2) == MAGIC_NUMBER_2);
                         }
                     }
@@ -199,9 +199,9 @@ TEST_CASE("io_queue/select two fds scenarios", "[io_queue/select]")
                         REQUIRE(!fd_error2);
                         REQUIRE(test_select.empty());
                         REQUIRE(ready.size() == 2);
-                        REQUIRE(ready.front() == std::noop_coroutine());
+                        REQUIRE(ready.front() == nullptr);
                         ready.pop();
-                        REQUIRE(ready.front() == std::noop_coroutine());
+                        REQUIRE(ready.front() == nullptr);
                         REQUIRE(read_eventfd(event_fd1) == MAGIC_NUMBER_1);
                         REQUIRE(read_eventfd(event_fd2) == MAGIC_NUMBER_2);
                     }
@@ -225,8 +225,8 @@ TEST_CASE("io_queue/select complex scenario", "[io_queue/select]")
         std::error_code fd_error1;
         std::error_code fd_error2;
 
-        test_select.add({ co1::io_type::read, event_fd1 }, fd_error1, std::noop_coroutine());
-        test_select.add({ co1::io_type::read, event_fd2 }, fd_error2, std::noop_coroutine());
+        test_select.add({ co1::io_type::read, event_fd1 }, fd_error1, nullptr);
+        test_select.add({ co1::io_type::read, event_fd2 }, fd_error2, nullptr);
         WHEN("write to first eventfd to make it readable, and then poll the queue")
         {
             write_eventfd(event_fd1, MAGIC_NUMBER_1);
@@ -238,7 +238,7 @@ TEST_CASE("io_queue/select complex scenario", "[io_queue/select]")
                 REQUIRE(!fd_error2);
                 REQUIRE(!test_select.empty());
                 REQUIRE(!ready.empty());
-                REQUIRE(ready.front() == std::noop_coroutine());
+                REQUIRE(ready.front() == nullptr);
                 REQUIRE(read_eventfd(event_fd1) == MAGIC_NUMBER_1);
 
                 uint64_t val = 0;
@@ -251,7 +251,7 @@ TEST_CASE("io_queue/select complex scenario", "[io_queue/select]")
             WHEN("close 1st, add the closed 1st back to the queue, write to 2nd to make it readable, poll the queue")
             {
                 ::close(event_fd1);
-                test_select.add({ co1::io_type::read, event_fd1 }, fd_error1, std::noop_coroutine());
+                test_select.add({ co1::io_type::read, event_fd1 }, fd_error1, nullptr);
                 write_eventfd(event_fd2, MAGIC_NUMBER_2);
                 ecode = test_select.poll(ready, 100ms);
                 THEN("both fds are in 'ready', but closed fd reports error, read of 2nd fd succeeds")
@@ -261,9 +261,9 @@ TEST_CASE("io_queue/select complex scenario", "[io_queue/select]")
                     REQUIRE(!fd_error2);
                     REQUIRE(test_select.empty());
                     REQUIRE(ready.size() == 2);
-                    REQUIRE(ready.front() == std::noop_coroutine());
+                    REQUIRE(ready.front() == nullptr);
                     ready.pop();
-                    REQUIRE(ready.front() == std::noop_coroutine());
+                    REQUIRE(ready.front() == nullptr);
                     REQUIRE(read_eventfd(event_fd2) == MAGIC_NUMBER_2);
                 }
             }

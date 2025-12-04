@@ -20,16 +20,16 @@ public:
     {
         io_wait m_io_wait;
         std::error_code* m_error_code;
-        std::coroutine_handle<> m_coro;
+        detail::coro_ctl m_ctl;
     };
 
     static constexpr size_t RESERVED_IOPS_COUNT = 16;
 
     select() { m_iows.reserve(RESERVED_IOPS_COUNT); }
 
-    void add(const io_wait& iow, std::error_code& error_code, std::coroutine_handle<> coro)
+    void add(const io_wait& iow, std::error_code& error_code, detail::coro_ctl ctl)
     {
-        m_iows.emplace_back(iow, &error_code, coro);
+        m_iows.emplace_back(iow, &error_code, std::move(ctl));
     }
 
     [[nodiscard]] bool empty() const noexcept { return m_iows.empty(); }
@@ -98,7 +98,7 @@ public:
             if (entry.m_io_wait.fd < 0)
             {
                 *entry.m_error_code = std::make_error_code(std::errc::invalid_argument);
-                ready.push(entry.m_coro);
+                ready.push(entry.m_ctl);
                 return true;
             }
             if (entry.m_io_wait.type == io_type::read)
@@ -114,7 +114,7 @@ public:
                 return false;
             }
             *entry.m_error_code = std::make_error_code(std::errc::invalid_argument);
-            ready.push(entry.m_coro);
+            ready.push(entry.m_ctl);
             return true;
         });
 
@@ -134,7 +134,7 @@ public:
             if (triggered)
             {
                 *entry.m_error_code = std::error_code{};
-                ready.push(entry.m_coro);
+                ready.push(entry.m_ctl);
             }
 
             return triggered;
@@ -151,7 +151,7 @@ public:
             {
                 TRACE("Invalid file descriptor detected: " << entry.m_io_wait.fd);
                 *entry.m_error_code = std::error_code { EBADF, std::generic_category() };
-                ready.push(entry.m_coro);
+                ready.push(entry.m_ctl);
                 return true;
             }
             return false;

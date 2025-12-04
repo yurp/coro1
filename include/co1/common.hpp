@@ -17,8 +17,8 @@
 
 #include <coroutine>
 #include <chrono>
+#include <memory>
 #include <queue>
-
 
 namespace co1
 {
@@ -54,7 +54,36 @@ private:
 namespace detail
 {
 
-using coro_queue_t = std::queue<std::coroutine_handle<>>;
+struct control_block
+{
+    std::coroutine_handle<> m_root_coro = nullptr;
+    std::coroutine_handle<> m_active_coro = nullptr;
+
+    explicit control_block(std::coroutine_handle<> coro)
+        : m_root_coro(coro)
+        , m_active_coro(coro)
+    {
+    }
+
+    control_block() = default;
+    control_block(const control_block& ) = delete;
+    control_block& operator=(const control_block& ) = delete;
+    control_block(control_block&& ) = delete;
+    control_block& operator=(control_block&& ) = delete;
+
+    ~control_block()
+    {
+        TRACE("Destroying control block");
+        if (m_root_coro)
+        {
+            m_root_coro.destroy();
+        }
+    }
+};
+
+using coro_ctl = std::shared_ptr<control_block>;
+
+using coro_queue_t = std::queue<coro_ctl>;
 using ready_sink_t = coro_queue_t;
 
 } // namespace detail
