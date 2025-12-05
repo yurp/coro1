@@ -86,6 +86,9 @@ public:
 
     T await_resume()
     {
+        auto& awaited_promise = m_handle.promise();
+        awaited_promise.m_ctl->m_active_coro = awaited_promise.m_parent;
+
         TRACE("Resuming after await, updaiting call stack");
         if constexpr (std::is_void_v<T>)
         {

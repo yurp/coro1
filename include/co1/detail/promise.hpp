@@ -24,11 +24,10 @@ struct promise_base
             if (promise.m_parent)
             {
                 TRACE("Resuming parent coroutine");
-                promise.m_ctl->m_active_coro = promise.m_parent;
                 return promise.m_parent;
             }
-            TRACE("Scheduling finalized coroutine");
 
+            TRACE("Scheduling finalized coroutine");
             auto ctl = std::move(promise.m_ctl);
             promise.m_ctl = nullptr;
             promise.m_queues->m_finalized_coros.push(std::move(ctl));
