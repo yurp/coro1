@@ -46,7 +46,7 @@ public:
         auto moved_task = std::move(task_to_spawn);
         auto coro_handle = moved_task.release();
         auto ctl = std::make_shared<detail::control_block>(coro_handle);
-        coro_handle.promise().m_scheduler = &m_queues;
+        coro_handle.promise().m_queues = &m_queues;
         coro_handle.promise().m_ctl = ctl;
 
         m_queues.m_ready_coros.push(ctl);

@@ -10,7 +10,7 @@
 namespace co1::detail
 {
 
-template <typename Scheduler>
+template <typename Queues>
 struct promise_base
 {
     struct final_awaiter
@@ -31,7 +31,7 @@ struct promise_base
 
             auto ctl = std::move(promise.m_ctl);
             promise.m_ctl = nullptr;
-            promise.m_scheduler->m_finalized_coros.push(std::move(ctl));
+            promise.m_queues->m_finalized_coros.push(std::move(ctl));
             return std::noop_coroutine();
         }
 
@@ -47,7 +47,7 @@ struct promise_base
     final_awaiter final_suspend() noexcept { return {}; }
     void unhandled_exception() { std::terminate(); }
 
-    Scheduler* m_scheduler = nullptr;
+    Queues* m_queues = nullptr;
     std::coroutine_handle<> m_parent = nullptr; // noop_courutine if none - so no need to check for nullptr
     coro_ctl m_ctl = nullptr;
 

@@ -21,7 +21,7 @@ public:
     void await_suspend(std::coroutine_handle<detail::promise<Scheduler, T>> coro) noexcept
     {
         auto& promise = coro.promise();
-        promise.m_scheduler->m_timer_queue.add(m_time_wait.until(), promise.m_ctl);
+        promise.m_queues->m_timer_queue.add(m_time_wait.until(), promise.m_ctl);
     }
     void await_resume() noexcept { }
 
@@ -45,7 +45,7 @@ public:
     void await_suspend(std::coroutine_handle<detail::promise<Scheduler, T>> coro) noexcept
     {
         auto& promise = coro.promise();
-        promise.m_scheduler->m_io_queue.add(m_io_wait, m_error_code, promise.m_ctl);
+        promise.m_queues->m_io_queue.add(m_io_wait, m_error_code, promise.m_ctl);
     }
 
     std::error_code await_resume() noexcept
@@ -76,7 +76,7 @@ public:
         TRACE("Suspending current coroutine and resuming awaited coroutine");
         auto& awaited_promise = m_handle.promise();
         auto& parent_promise = parent.promise();
-        awaited_promise.m_scheduler = parent_promise.m_scheduler;
+        awaited_promise.m_queues = parent_promise.m_queues;
         awaited_promise.m_ctl = parent_promise.m_ctl;
         awaited_promise.m_ctl->m_active_coro = m_handle;
         awaited_promise.m_parent = parent;
