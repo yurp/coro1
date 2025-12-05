@@ -4,13 +4,13 @@
 #pragma once
 
 #include <co1/common.hpp>
-#include <co1/detail/scheduler.hpp>
 
 #include <coroutine>
 
 namespace co1::detail
 {
 
+template <typename Scheduler>
 struct promise_base
 {
     struct final_awaiter
@@ -47,7 +47,7 @@ struct promise_base
     final_awaiter final_suspend() noexcept { return {}; }
     void unhandled_exception() { std::terminate(); }
 
-    detail::scheduler* m_scheduler = nullptr;
+    Scheduler* m_scheduler = nullptr;
     std::coroutine_handle<> m_parent = nullptr; // noop_courutine if none - so no need to check for nullptr
     coro_ctl m_ctl = nullptr;
 
@@ -56,8 +56,8 @@ protected:
     ~promise_base() { TRACE("Destroying promise"); }
 };
 
-template <typename T>
-struct promise : promise_base
+template <typename Scheduler, typename T>
+struct promise : promise_base<Scheduler>
 {
     using handle_t = std::coroutine_handle<promise>;
 
@@ -69,8 +69,8 @@ struct promise : promise_base
     std::optional<T> m_value;
 };
 
-template <>
-struct promise<void> : promise_base
+template <typename Scheduler>
+struct promise<Scheduler, void> : promise_base<Scheduler>
 {
 public:
     using handle_t = std::coroutine_handle<promise>;

@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Iurii Pelykh
 
-#include <co1/awaiters.hpp>
-#include <co1/io_queue/select.hpp>
-#include <co1/scheduler.hpp>
+#include <co1/co1.hpp>
 
 #include <iostream>
-
-using select_scheduler = co1::scheduler<co1::io_queue::select>;
 
 co1::task<void> logged_sleep(std::string tag, std::chrono::seconds duration)
 {
@@ -39,7 +35,7 @@ int main()
 {
     try
     {
-        int result = select_scheduler{}.start(async_main());
+        int result = co1::scheduler{}.start(async_main());
         std::cout << "async_main returned: " << result << std::endl;
     }
     catch(const std::exception& e)

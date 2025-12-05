@@ -10,24 +10,24 @@
 namespace co1
 {
 
-template <typename T = void>
-class [[nodiscard]] task
+template <typename Scheduler, typename T = void>
+class [[nodiscard]] basic_task
 {
 public:
-    using promise_type = detail::promise<T>;
+    using promise_type = detail::promise<Scheduler, T>;
     using handle_t = std::coroutine_handle<promise_type>;
 
-    task(handle_t handle) : m_handle(handle) { }
+    basic_task(handle_t handle) : m_handle(handle) { }
 
-    task(const task& ) = delete;
-    task& operator=(const task& ) = delete;
+    basic_task(const basic_task& ) = delete;
+    basic_task& operator=(const basic_task& ) = delete;
 
-    task(task&& other) noexcept
+    basic_task(basic_task&& other) noexcept
         : m_handle(std::exchange(other.m_handle, nullptr))
     {
     }
 
-    task& operator=(task&& other) noexcept
+    basic_task& operator=(basic_task&& other) noexcept
     {
         if (this != &other)
         {
@@ -40,7 +40,7 @@ public:
         return *this;
     }
 
-    ~task()
+    ~basic_task()
     {
         if (m_handle)
         {
@@ -54,11 +54,11 @@ private:
     handle_t m_handle;
 };
 
-template <typename T>
-class task_handle
+template <typename Scheduler, typename T>
+class basic_task_handle
 {
 public:
-    explicit task_handle(detail::coro_ctl ctl)
+    explicit basic_task_handle(detail::coro_ctl ctl)
         : m_coro_ctl(std::move(ctl))
     {
     }
@@ -68,7 +68,7 @@ public:
         if (m_coro_ctl && m_coro_ctl->m_root_coro && m_coro_ctl->m_root_coro.done())
         {
             auto* addr = m_coro_ctl->m_root_coro.address();
-            auto typed_handle = std::coroutine_handle<detail::promise<T>>::from_address(addr);
+            auto typed_handle = std::coroutine_handle<detail::promise<Scheduler, T>>::from_address(addr);
             auto& value = typed_handle.promise().m_value;
             if (value.has_value())
             {
@@ -84,11 +84,11 @@ private:
     detail::coro_ctl m_coro_ctl;
 };
 
-template <>
-class task_handle<void>
+template <typename Scheduler>
+class basic_task_handle<Scheduler, void>
 {
 public:
-    explicit task_handle(detail::coro_ctl ctl)
+    explicit basic_task_handle(detail::coro_ctl ctl)
         : m_coro_ctl(std::move(ctl))
     {
     }

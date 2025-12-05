@@ -43,9 +43,9 @@ struct io_queue_wrapper
     }
 };
 
-struct scheduler
+struct basic_scheduler
 {
-    explicit scheduler(io_queue_wrapper queue)
+    explicit basic_scheduler(io_queue_wrapper queue)
         : m_io_queue(queue)
         , m_timer_queue {}
     {

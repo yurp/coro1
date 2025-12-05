@@ -14,17 +14,23 @@ namespace co1
 {
 
 template <typename IoQueue>
-class scheduler
+class basic_scheduler
 {
 public:
-    scheduler()
+    template <typename T>
+    using task_t = basic_task<detail::basic_scheduler, T>;
+
+    template <typename T>
+    using task_handle_t = basic_task_handle<detail::basic_scheduler, T>;
+
+    basic_scheduler()
         : m_io_queue()
         , m_impl(detail::io_queue_wrapper::make(m_io_queue))
     {
     }
 
     template <typename T>
-    T start(task<T>&& task_to_start)
+    T start(task_t<T>&& task_to_start)
     {
         auto tsk = spawn(std::move(task_to_start));
         run();
@@ -32,7 +38,7 @@ public:
     }
 
     template <typename T>
-    task_handle<T> spawn(task<T>&& task_to_spawn)
+    task_handle_t<T> spawn(task_t<T>&& task_to_spawn)
     {
         auto moved_task = std::move(task_to_spawn);
         auto coro_handle = moved_task.release();
@@ -42,7 +48,7 @@ public:
 
         m_impl.m_ready_coros.push(ctl);
 
-        return task_handle<T> { std::move(ctl) };
+        return task_handle_t<T> { std::move(ctl) };
     }
 
     void run()
@@ -84,7 +90,7 @@ public:
 
 private:
     IoQueue m_io_queue; ///< customization point for IO
-    detail::scheduler m_impl;
+    detail::basic_scheduler m_impl;
 };
 
 } // namespace co1

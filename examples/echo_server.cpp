@@ -9,9 +9,7 @@
 
 #include "socket_helpers.hpp"
 
-#include <co1/awaiters.hpp>
-#include <co1/io_queue/select.hpp>
-#include <co1/scheduler.hpp>
+#include <co1/co1.hpp>
 
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -21,8 +19,6 @@
 #include <array>
 #include <cstring>
 #include <iostream>
-
-using select_scheduler = co1::scheduler<co1::io_queue::select>;
 
 class client_socket
 {
@@ -166,7 +162,7 @@ co1::task<void> process_client(client_socket client)
 }
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-reference-coroutine-parameters)
-co1::task<void> async_main(select_scheduler& scheduler)
+co1::task<void> async_main(co1::scheduler& scheduler)
 {
     static constexpr int PORT = 12345;
     static constexpr size_t MAX_CLIENTS = 5;
@@ -188,7 +184,7 @@ int main()
 {
     try
     {
-        select_scheduler scheduler;
+        co1::scheduler scheduler;
         scheduler.start(async_main(scheduler));
     }
     catch(const std::exception& e)
