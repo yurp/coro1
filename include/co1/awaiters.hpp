@@ -17,8 +17,8 @@ public:
 
     [[nodiscard]] bool await_ready() noexcept { return false; }
 
-    template <typename Scheduler, typename T>
-    void await_suspend(std::coroutine_handle<detail::promise<Scheduler, T>> coro) noexcept
+    template <typename Queues, typename T>
+    void await_suspend(std::coroutine_handle<detail::promise<Queues, T>> coro) noexcept
     {
         auto& promise = coro.promise();
         promise.m_queues->m_timer_queue.add(m_time_wait.until(), promise.m_ctl);
@@ -41,8 +41,8 @@ public:
 
     [[nodiscard]] bool await_ready() const noexcept { return false; }
 
-    template <typename Scheduler, typename T>
-    void await_suspend(std::coroutine_handle<detail::promise<Scheduler, T>> coro) noexcept
+    template <typename Queues, typename T>
+    void await_suspend(std::coroutine_handle<detail::promise<Queues, T>> coro) noexcept
     {
         auto& promise = coro.promise();
         promise.m_queues->m_io_queue.add(m_io_wait, m_error_code, promise.m_ctl);
@@ -63,15 +63,15 @@ io_awaiter operator co_await(io_wait iow)
     return { iow };
 }
 
-template <typename Scheduler, typename T>
+template <typename Queues, typename T>
 class task_awaiter
 {
 public:
-    explicit task_awaiter(basic_task<Scheduler, T>::handle_t handle) : m_handle(handle) { }
+    explicit task_awaiter(basic_task<Queues, T>::handle_t handle) : m_handle(handle) { }
     [[nodiscard]] bool await_ready() const noexcept { return false; }
 
     template<typename U>
-    auto await_suspend(std::coroutine_handle<detail::promise<Scheduler, U>> parent) noexcept
+    auto await_suspend(std::coroutine_handle<detail::promise<Queues, U>> parent) noexcept
     {
         TRACE("Suspending current coroutine and resuming awaited coroutine");
         auto& awaited_promise = m_handle.promise();
@@ -110,14 +110,14 @@ public:
     }
 
 private:
-    basic_task<Scheduler, T>::handle_t m_handle;
+    basic_task<Queues, T>::handle_t m_handle;
 };
 
-template <typename Scheduler, typename T>
-task_awaiter<Scheduler, T> operator co_await(basic_task<Scheduler, T>&& awaited_task) noexcept
+template <typename Queues, typename T>
+task_awaiter<Queues, T> operator co_await(basic_task<Queues, T>&& awaited_task) noexcept
 {
     auto moved_task = std::move(awaited_task);
-    return task_awaiter<Scheduler, T> { moved_task.release() };
+    return task_awaiter<Queues, T> { moved_task.release() };
 }
 
 

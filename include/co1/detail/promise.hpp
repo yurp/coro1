@@ -55,8 +55,8 @@ protected:
     ~promise_base() { TRACE("Destroying promise"); }
 };
 
-template <typename Scheduler, typename T>
-struct promise : promise_base<Scheduler>
+template <typename Queues, typename T>
+struct promise : promise_base<Queues>
 {
     using handle_t = std::coroutine_handle<promise>;
 
@@ -68,8 +68,8 @@ struct promise : promise_base<Scheduler>
     std::optional<T> m_value;
 };
 
-template <typename Scheduler>
-struct promise<Scheduler, void> : promise_base<Scheduler>
+template <typename Queues>
+struct promise<Queues, void> : promise_base<Queues>
 {
 public:
     using handle_t = std::coroutine_handle<promise>;
