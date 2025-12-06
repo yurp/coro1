@@ -22,6 +22,7 @@ if (CO1_BUILD_TESTS)
     enable_testing()
 
     set(TEST_SOURCES
+        tests/test_exception.cpp
         tests/test_io_queue_select.cpp
         tests/test_timer_queue.cpp
     )

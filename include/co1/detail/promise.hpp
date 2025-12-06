@@ -6,6 +6,7 @@
 #include <co1/common.hpp>
 
 #include <coroutine>
+#include <exception>
 
 namespace co1::detail
 {
@@ -44,15 +45,23 @@ struct promise_base
 
     std::suspend_always initial_suspend() noexcept { return {}; }
     final_awaiter final_suspend() noexcept { return {}; }
-    void unhandled_exception() { std::terminate(); }
+    void unhandled_exception() { m_exception = std::current_exception(); }
 
     Queues* m_queues = nullptr;
-    std::coroutine_handle<> m_parent = nullptr; // noop_courutine if none - so no need to check for nullptr
+    std::coroutine_handle<> m_parent = nullptr;
     coro_ctl m_ctl = nullptr;
+    std::exception_ptr m_exception = nullptr;
 
 protected:
     promise_base() = default;
-    ~promise_base() { TRACE("Destroying promise"); }
+    ~promise_base()
+    {
+        TRACE("Destroying promise");
+        if (m_exception)
+        {
+            TRACE("Promise being destroyed has unhandled exception");
+        }
+    }
 };
 
 template <typename Queues, typename T>

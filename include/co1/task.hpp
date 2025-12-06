@@ -69,6 +69,15 @@ public:
         {
             auto* addr = m_coro_ctl->m_root_coro.address();
             auto typed_handle = std::coroutine_handle<detail::promise<Scheduler, T>>::from_address(addr);
+            if (typed_handle.promise().m_exception)
+            {
+                TRACE("Rethrowing exception from task handle");
+                auto exception = typed_handle.promise().m_exception;
+                typed_handle.promise().m_exception = nullptr;
+                m_coro_ctl = nullptr;
+                std::rethrow_exception(exception);
+            }
+
             auto& value = typed_handle.promise().m_value;
             if (value.has_value())
             {

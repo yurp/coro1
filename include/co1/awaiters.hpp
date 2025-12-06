@@ -89,6 +89,15 @@ public:
         auto& awaited_promise = m_handle.promise();
         awaited_promise.m_ctl->m_active_coro = awaited_promise.m_parent;
 
+        if (awaited_promise.m_exception)
+        {
+            TRACE("Rethrowing exception from awaited task");
+            auto exception = awaited_promise.m_exception;
+            awaited_promise.m_exception = nullptr;
+            m_handle.destroy();
+            std::rethrow_exception(exception);
+        }
+
         TRACE("Resuming after await, updaiting call stack");
         if constexpr (std::is_void_v<T>)
         {
