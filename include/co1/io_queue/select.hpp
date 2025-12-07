@@ -2,6 +2,7 @@
 #pragma once
 
 #include <co1/common.hpp>
+#include <co1/event_queues.hpp>
 
 #include <fcntl.h>
 #include <sys/select.h>
@@ -16,6 +17,9 @@ namespace co1::io_queue
 class select
 {
 public:
+    using input_type = io_wait;
+    using result_type = std::error_code;
+
     struct entry
     {
         io_wait m_io_wait;
@@ -87,6 +91,7 @@ public:
         }
     }
 
+private:
     int build_fd_set(detail::ready_sink_t& ready, bool& bad_fd_detected)
     {
         int max_fd = -1;
@@ -160,10 +165,11 @@ public:
         m_iows.erase(iter, m_iows.end());
     }
 
-private:
     std::vector<entry> m_iows;
     fd_set m_read_fds {};
     fd_set m_write_fds {};
 };
+
+static_assert(co1::blocking_event_queue<select>);
 
 } // namespace co1::io_queue

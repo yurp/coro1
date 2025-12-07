@@ -4,6 +4,7 @@
 #pragma once
 
 #include <co1/common.hpp>
+#include <co1/event_queues.hpp>
 
 #include <coroutine>
 #include <exception>
@@ -11,7 +12,7 @@
 namespace co1::detail
 {
 
-template <typename Queues>
+template <unique_event_queues... Qs>
 struct promise_base
 {
     struct final_awaiter
@@ -29,9 +30,8 @@ struct promise_base
             }
 
             TRACE("Scheduling finalized coroutine");
-            auto ctl = std::move(promise.m_ctl);
+            promise.m_context->m_finalized_coro = std::move(promise.m_ctl);
             promise.m_ctl = nullptr;
-            promise.m_queues->m_finalized_coros.push(std::move(ctl));
             return std::noop_coroutine();
         }
 
@@ -47,7 +47,21 @@ struct promise_base
     final_awaiter final_suspend() noexcept { return {}; }
     void unhandled_exception() { m_exception = std::current_exception(); }
 
-    Queues* m_queues = nullptr;
+    template <typename In>
+    void push_to_queue(In&& input)
+    {
+        using input_t = std::remove_cvref_t<In>;
+        add_to_queue<input_t>(m_context->m_queues, std::forward<In>(input), m_ctl);
+    }
+
+    template <typename In, typename Out>
+    void push_to_queue(In&& input, Out&& output)
+    {
+        using input_t = std::remove_cvref_t<In>;
+        add_to_queue<input_t>(m_context->m_queues, std::forward<In>(input), std::forward<Out>(output), m_ctl);
+    }
+
+    pushable_context<Qs...>* m_context = nullptr;
     std::coroutine_handle<> m_parent = nullptr;
     coro_ctl m_ctl = nullptr;
     std::exception_ptr m_exception = nullptr;
@@ -64,8 +78,8 @@ protected:
     }
 };
 
-template <typename Queues, typename T>
-struct promise : promise_base<Queues>
+template <typename T, unique_event_queues... Qs>
+struct promise : promise_base<Qs...>
 {
     using handle_t = std::coroutine_handle<promise>;
 
@@ -77,8 +91,8 @@ struct promise : promise_base<Queues>
     std::optional<T> m_value;
 };
 
-template <typename Queues>
-struct promise<Queues, void> : promise_base<Queues>
+template <unique_event_queues... Qs>
+struct promise<void, Qs...> : promise_base<Qs...>
 {
 public:
     using handle_t = std::coroutine_handle<promise>;

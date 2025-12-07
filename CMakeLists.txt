@@ -24,6 +24,7 @@ if (CO1_BUILD_TESTS)
     set(TEST_SOURCES
         tests/test_exception.cpp
         tests/test_io_queue_select.cpp
+        tests/test_queues.cpp
         tests/test_timer_queue.cpp
     )
 

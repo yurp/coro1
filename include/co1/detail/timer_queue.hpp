@@ -4,6 +4,7 @@
 #pragma once
 
 #include <co1/common.hpp>
+#include <co1/event_queues.hpp>
 
 #include <chrono>
 #include <coroutine>
@@ -15,6 +16,7 @@ namespace co1::detail
 class timer_queue
 {
 public:
+    using input_type = time_point_t;
 
     struct timer
     {
@@ -67,5 +69,7 @@ public:
 private:
     std::priority_queue<timer> m_timers;
 };
+
+static_assert(co1::generic_event_queue<timer_queue>);
 
 } // namespace co1::detail

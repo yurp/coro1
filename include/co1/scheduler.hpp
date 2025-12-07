@@ -4,31 +4,25 @@
 #pragma once
 
 #include <co1/common.hpp>
+#include <co1/event_queues.hpp>
 #include <co1/task.hpp>
 
 #include <functional>
 #include <queue>
+#include <thread>
 
 namespace co1
 {
 
-template <typename IoQueue, typename TimerQueue>
+template <unique_event_queues... Qs>
 class basic_scheduler
 {
 public:
-    struct queues
-    {
-        IoQueue m_io_queue;
-        TimerQueue m_timer_queue;
-        detail::coro_queue_t m_ready_coros;
-        detail::coro_queue_t m_finalized_coros;
-    };
+    template <typename T>
+    using task_t = basic_task<T, Qs...>;
 
     template <typename T>
-    using task_t = basic_task<queues, T>;
-
-    template <typename T>
-    using task_handle_t = basic_task_handle<queues, T>;
+    using task_handle_t = basic_task_handle<T, Qs...>;
 
     basic_scheduler() = default;
 
@@ -46,10 +40,10 @@ public:
         auto moved_task = std::move(task_to_spawn);
         auto coro_handle = moved_task.release();
         auto ctl = std::make_shared<detail::control_block>(coro_handle);
-        coro_handle.promise().m_queues = &m_queues;
+        coro_handle.promise().m_context = &m_push_context;
         coro_handle.promise().m_ctl = ctl;
 
-        m_queues.m_ready_coros.push(ctl);
+        m_ready_coros.push(ctl);
 
         return task_handle_t<T> { std::move(ctl) };
     }
@@ -61,38 +55,45 @@ public:
         {
             TRACE("Scheduler loop iteration");
 
-            while (!m_queues.m_finalized_coros.empty())
+            while (m_push_context.m_finalized_coro != nullptr)
             {
                 TRACE("Destroying finalized coroutine");
-                m_queues.m_finalized_coros.pop();
+                m_push_context.m_finalized_coro = nullptr;
             }
 
-            if (m_queues.m_ready_coros.empty() && m_queues.m_finalized_coros.empty() &&
-                m_queues.m_timer_queue.empty() && m_queues.m_io_queue.empty())
+            if (m_ready_coros.empty() && event_queues_empty(m_push_context.m_queues))
             {
                 break;
             }
 
-            while (m_queues.m_ready_coros.empty())
+            while (m_ready_coros.empty())
             {
                 TRACE("No ready coroutines, polling timers and IO events");
-                auto time_point = m_queues.m_timer_queue.poll(m_queues.m_ready_coros);
+                auto time_point = poll_generic_event_queues(m_ready_coros, m_push_context.m_queues);
                 auto now = clock_t::now();
-                auto duration = (m_queues.m_ready_coros.empty() && time_point > now) ?
+                auto duration = (m_ready_coros.empty() && time_point > now) ?
                                     time_point - now :
                                     clock_t::duration::zero();
-                m_queues.m_io_queue.poll(m_queues.m_ready_coros, duration);
+                if constexpr (has_blocking_event_queue_v<Qs...>)
+                {
+                    get_io_event_queue(m_push_context.m_queues).poll(m_ready_coros, duration);
+                }
+                else
+                {
+                    std::this_thread::sleep_for(duration);
+                }
             }
 
-            auto coro_to_resume = m_queues.m_ready_coros.front();
-            m_queues.m_ready_coros.pop();
+            auto coro_to_resume = m_ready_coros.front();
+            m_ready_coros.pop();
             coro_to_resume->m_active_coro.resume();
         }
         TRACE("Ending scheduler loop");
     }
 
 private:
-    queues m_queues;
+    pushable_context<Qs...> m_push_context;
+    detail::coro_queue_t m_ready_coros;
 };
 
 } // namespace co1

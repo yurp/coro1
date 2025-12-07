@@ -10,11 +10,11 @@
 namespace co1
 {
 
-template <typename Scheduler, typename T = void>
+template <typename T, unique_event_queues... Qs>
 class [[nodiscard]] basic_task
 {
 public:
-    using promise_type = detail::promise<Scheduler, T>;
+    using promise_type = detail::promise<T, Qs...>;
     using handle_t = std::coroutine_handle<promise_type>;
 
     basic_task(handle_t handle) : m_handle(handle) { }
@@ -54,7 +54,7 @@ private:
     handle_t m_handle;
 };
 
-template <typename Scheduler, typename T>
+template <typename T = void, unique_event_queues... Qs>
 class basic_task_handle
 {
 public:
@@ -68,7 +68,7 @@ public:
         if (m_coro_ctl && m_coro_ctl->m_root_coro && m_coro_ctl->m_root_coro.done())
         {
             auto* addr = m_coro_ctl->m_root_coro.address();
-            auto typed_handle = std::coroutine_handle<detail::promise<Scheduler, T>>::from_address(addr);
+            auto typed_handle = std::coroutine_handle<detail::promise<T, Qs...>>::from_address(addr);
             if (typed_handle.promise().m_exception)
             {
                 TRACE("Rethrowing exception from task handle");
@@ -93,8 +93,8 @@ private:
     detail::coro_ctl m_coro_ctl;
 };
 
-template <typename Scheduler>
-class basic_task_handle<Scheduler, void>
+template <unique_event_queues... Qs>
+class basic_task_handle<void, Qs...>
 {
 public:
     explicit basic_task_handle(detail::coro_ctl ctl)

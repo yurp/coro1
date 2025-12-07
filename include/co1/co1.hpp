@@ -16,10 +16,10 @@ using default_timer_queue = detail::timer_queue;
 
 using scheduler = basic_scheduler<default_io_queue, default_timer_queue>;
 
-template <typename T>
+template <typename T = void>
 using task = scheduler::task_t<T>;
 
-template <typename T>
+template <typename T = void>
 using task_handle = scheduler::task_handle_t<T>;
 
 } // namespace co1

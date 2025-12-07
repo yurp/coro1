@@ -5,78 +5,85 @@
 
 #include <co1/common.hpp>
 #include <co1/detail/promise.hpp>
+#include <co1/event_queues.hpp>
 #include <co1/task.hpp>
 
 namespace co1
 {
 
-struct time_awaiter
+template <typename In>
+struct base_event_queue_awaiter
 {
-public:
-    time_awaiter(wait time_wait) : m_time_wait(time_wait)  { }
+    base_event_queue_awaiter(const base_event_queue_awaiter& ) = delete;
+    base_event_queue_awaiter& operator=(const base_event_queue_awaiter& ) = delete;
+    base_event_queue_awaiter(base_event_queue_awaiter&& ) = delete;
+    base_event_queue_awaiter& operator=(base_event_queue_awaiter&& ) = delete;
+    ~base_event_queue_awaiter() = default;
+
+    template <typename T>
+    explicit base_event_queue_awaiter(T&& input) : m_input(std::forward<T>(input))  { }
 
     [[nodiscard]] bool await_ready() noexcept { return false; }
 
-    template <typename Queues, typename T>
-    void await_suspend(std::coroutine_handle<detail::promise<Queues, T>> coro) noexcept
+    In m_input;
+};
+
+template <typename In, typename Result = void>
+    requires (std::is_void_v<Result> || std::default_initializable<Result>)
+struct event_queue_awaiter : base_event_queue_awaiter<In>
+{
+    using base_event_queue_awaiter<In>::base_event_queue_awaiter;
+
+    template <typename Ctx>
+    void await_suspend(std::coroutine_handle<Ctx> coro) noexcept
+        requires pushable_with_result<Ctx, In, Result>
     {
-        auto& promise = coro.promise();
-        promise.m_queues->m_timer_queue.add(m_time_wait.until(), promise.m_ctl);
+        coro.promise().push_to_queue(std::move(this->m_input), m_output);
+    }
+
+    Result await_resume() noexcept { return std::move(m_output); }
+
+    Result m_output;
+};
+
+template <typename In>
+struct event_queue_awaiter<In, void> : base_event_queue_awaiter<In>
+{
+    using base_event_queue_awaiter<In>::base_event_queue_awaiter;
+
+    template <typename Ctx>
+    void await_suspend(std::coroutine_handle<Ctx> coro) noexcept
+        requires pushable<Ctx, In>
+    {
+        coro.promise().push_to_queue(std::move(this->m_input));
     }
     void await_resume() noexcept { }
-
-private:
-    wait m_time_wait;
 };
 
-time_awaiter operator co_await(wait time_wait)
+event_queue_awaiter<time_point_t> operator co_await(wait time_wait)
 {
-    return { time_wait };
+    return event_queue_awaiter<time_point_t> { time_wait.until() };
 }
 
-struct io_awaiter
+event_queue_awaiter<io_wait, std::error_code> operator co_await(io_wait iow)
 {
-public:
-    io_awaiter(io_wait iow) : m_io_wait(iow)  { }
-
-    [[nodiscard]] bool await_ready() const noexcept { return false; }
-
-    template <typename Queues, typename T>
-    void await_suspend(std::coroutine_handle<detail::promise<Queues, T>> coro) noexcept
-    {
-        auto& promise = coro.promise();
-        promise.m_queues->m_io_queue.add(m_io_wait, m_error_code, promise.m_ctl);
-    }
-
-    std::error_code await_resume() noexcept
-    {
-        return m_error_code;
-    }
-
-private:
-    io_wait m_io_wait;
-    std::error_code m_error_code;
-};
-
-io_awaiter operator co_await(io_wait iow)
-{
-    return { iow };
+    return event_queue_awaiter<io_wait, std::error_code> { iow };
 }
 
-template <typename Queues, typename T>
+template <typename T, unique_event_queues... Qs>
 class task_awaiter
 {
 public:
-    explicit task_awaiter(basic_task<Queues, T>::handle_t handle) : m_handle(handle) { }
+    explicit task_awaiter(basic_task<T, Qs...>::handle_t handle) : m_handle(handle) { }
     [[nodiscard]] bool await_ready() const noexcept { return false; }
 
     template<typename U>
-    auto await_suspend(std::coroutine_handle<detail::promise<Queues, U>> parent) noexcept
+    auto await_suspend(std::coroutine_handle<detail::promise<U, Qs...>> parent) noexcept
     {
         TRACE("Suspending current coroutine and resuming awaited coroutine");
         auto& awaited_promise = m_handle.promise();
         auto& parent_promise = parent.promise();
-        awaited_promise.m_queues = parent_promise.m_queues;
+        awaited_promise.m_context = parent_promise.m_context;
         awaited_promise.m_ctl = parent_promise.m_ctl;
         awaited_promise.m_ctl->m_active_coro = m_handle;
         awaited_promise.m_parent = parent;
@@ -119,15 +126,14 @@ public:
     }
 
 private:
-    basic_task<Queues, T>::handle_t m_handle;
+    basic_task<T, Qs...>::handle_t m_handle;
 };
 
-template <typename Queues, typename T>
-task_awaiter<Queues, T> operator co_await(basic_task<Queues, T>&& awaited_task) noexcept
+template <typename T, unique_event_queues... Qs>
+task_awaiter<T, Qs...> operator co_await(basic_task<T, Qs...>&& awaited_task) noexcept
 {
     auto moved_task = std::move(awaited_task);
-    return task_awaiter<Queues, T> { moved_task.release() };
+    return task_awaiter<T, Qs...> { moved_task.release() };
 }
-
 
 } // namespace co1
