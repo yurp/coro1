@@ -9,11 +9,11 @@ Single-threaded header-only C++20 coroutine framework for embedded and edge micr
 ### [Usage example](examples/blink.cpp)
 
 ```c++
-#include <co1/co1.hpp>
+#include <co1/async_main.hpp>
 
 #include <iostream>
 
-co1::task<void> logged_sleep(std::string tag, std::chrono::seconds duration)
+co1::task<> logged_sleep(std::string tag, std::chrono::seconds duration)
 {
     using namespace std::chrono;
     auto now = duration_cast<seconds>(steady_clock::now().time_since_epoch());
@@ -21,7 +21,7 @@ co1::task<void> logged_sleep(std::string tag, std::chrono::seconds duration)
     co_await co1::wait(duration);
 }
 
-co1::task<int> async_main()
+co1::task<int> async_main(int /*argc*/, char** /*argv*/)
 {
     using namespace std::chrono_literals;
 
@@ -38,19 +38,4 @@ co1::task<int> async_main()
     std::cout << "Blinking completed" << std::endl;
     co_return MAGIC_NUMBER;
 }
-
-int main()
-{
-    try
-    {
-        int result = co1::scheduler{}.start(async_main());
-        std::cout << "async_main returned: " << result << std::endl;
-    }
-    catch(const std::exception& e)
-    {
-        std::cerr << e.what() << '\n';
-    }
-    return 0;
-}
-
 ```

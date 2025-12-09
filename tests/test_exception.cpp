@@ -22,16 +22,16 @@ co1::task<int> faulty_task()
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE("exception test", "[exception]")
 {
-    co1::scheduler scheduler;
+    co1::async_context async_ctx;
 
     SECTION("task handle catches exception")
     {
-        REQUIRE_THROWS_WITH(scheduler.start(faulty_task()), "Simulated task error");
+        REQUIRE_THROWS_WITH(async_ctx.start(faulty_task()), "Simulated task error");
     }
 
     SECTION("catch child task exception in parent task")
     {
-        int result = scheduler.start([]() -> co1::task<int>
+        int result = async_ctx.start([]() -> co1::task<int>
         {
             try
             {
@@ -48,7 +48,7 @@ TEST_CASE("exception test", "[exception]")
 
     SECTION("catch child task exception in grand parent task")
     {
-        int result = scheduler.start([]() -> co1::task<int>
+        int result = async_ctx.start([]() -> co1::task<int>
         {
             auto inner_task = []() -> co1::task<int> { co_return co_await faulty_task(); };
             try
@@ -66,9 +66,9 @@ TEST_CASE("exception test", "[exception]")
 
     SECTION("catch handled exception from spawned task")
     {
-        int result = scheduler.start([](auto* scheduler) -> co1::task<int>
+        int result = async_ctx.start([](auto* async_ctx) -> co1::task<int>
         {
-            auto hande = scheduler->spawn(faulty_task());
+            auto hande = async_ctx->spawn(faulty_task());
             co_await co1::wait(200ms); // wait for the task to fail
             try
             {
@@ -80,17 +80,17 @@ TEST_CASE("exception test", "[exception]")
             }
             co_return -1;
 
-        }(&scheduler));
+        }(&async_ctx));
         REQUIRE(result == -1);
     }
 
     SECTION("ignore handle of spawned task (no exception propagation like in std::future)")
     {
-        int result = scheduler.start([](auto* scheduler) -> co1::task<int>
+        int result = async_ctx.start([](auto* async_ctx) -> co1::task<int>
         {
             try
             {
-                [[maybe_unused]] auto hande = scheduler->spawn(faulty_task());
+                [[maybe_unused]] auto hande = async_ctx->spawn(faulty_task());
                 co_await co1::wait(200ms); // wait for the task to fail
                 co_return 0;
             }
@@ -100,7 +100,7 @@ TEST_CASE("exception test", "[exception]")
             }
 
             co_return -1;
-        }(&scheduler));
+        }(&async_ctx));
         REQUIRE(result == 0);
     }
 }

@@ -5,7 +5,6 @@
 
 #include <co1/common.hpp>
 #include <co1/event_queues.hpp>
-#include <co1/task.hpp>
 
 #include <functional>
 #include <queue>
@@ -18,34 +17,16 @@ template <unique_event_queues... Qs>
 class basic_scheduler
 {
 public:
-    template <typename T>
-    using task_t = basic_task<T, Qs...>;
-
-    template <typename T>
-    using task_handle_t = basic_task_handle<T, Qs...>;
+    using pushable_context_t = pushable_context<Qs...>;
 
     basic_scheduler() = default;
 
-    template <typename T>
-    T start(task_t<T>&& task_to_start)
+    pushable_context_t& get_pushable_context() { return m_push_context; }
+
+    void spawn(detail::coro_ctl coro)
     {
-        auto tsk = spawn(std::move(task_to_start));
-        run();
-        return tsk.get();
-    }
-
-    template <typename T>
-    task_handle_t<T> spawn(task_t<T>&& task_to_spawn)
-    {
-        auto moved_task = std::move(task_to_spawn);
-        auto coro_handle = moved_task.release();
-        auto ctl = std::make_shared<detail::control_block>(coro_handle);
-        coro_handle.promise().m_context = &m_push_context;
-        coro_handle.promise().m_ctl = ctl;
-
-        m_ready_coros.push(ctl);
-
-        return task_handle_t<T> { std::move(ctl) };
+        TRACE("Spawning new coroutine into scheduler");
+        m_ready_coros.push(std::move(coro));
     }
 
     bool step()
@@ -90,19 +71,8 @@ public:
         return true;
     }
 
-    void run()
-    {
-        TRACE("Starting scheduler loop");
-        bool has_work = true;
-        while (has_work)
-        {
-            has_work = step();
-        }
-        TRACE("Ending scheduler loop");
-    }
-
 private:
-    pushable_context<Qs...> m_push_context;
+    pushable_context_t m_push_context;
     detail::coro_queue_t m_ready_coros;
 };
 

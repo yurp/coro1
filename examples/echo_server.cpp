@@ -9,7 +9,7 @@
 
 #include "socket_helpers.hpp"
 
-#include <co1/co1.hpp>
+#include <co1/async_main.hpp>
 
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -129,7 +129,7 @@ private:
     co1::fd_t m_socket_fd = -1;
 };
 
-co1::task<void> process_client(client_socket client)
+co1::task<> process_client(client_socket client)
 {
     static constexpr size_t BUFFER_SIZE = 1024;
 
@@ -161,8 +161,7 @@ co1::task<void> process_client(client_socket client)
     std::cout << "client disconnected, socket" << std::endl;
 }
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-reference-coroutine-parameters)
-co1::task<void> async_main(co1::scheduler& scheduler)
+co1::task<int> async_main(int /*argc*/, char** /*argv*/)
 {
     static constexpr int PORT = 12345;
     static constexpr size_t MAX_CLIENTS = 5;
@@ -175,22 +174,9 @@ co1::task<void> async_main(co1::scheduler& scheduler)
         if (auto client = co_await server.accept())
         {
             std::cout << "accepted connection" << std::endl;
-            scheduler.spawn(process_client(std::move(client)));
+            co1::local_async_context::spawn(process_client(std::move(client)));
         }
     }
-}
 
-int main()
-{
-    try
-    {
-        co1::scheduler scheduler;
-        scheduler.start(async_main(scheduler));
-    }
-    catch(const std::exception& e)
-    {
-        std::cerr << e.what() << '\n';
-    }
-
-    return 0;
+    co_return 0;
 }
