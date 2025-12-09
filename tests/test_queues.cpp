@@ -28,7 +28,12 @@ struct base_queue
 
 struct base_io_queue : base_queue
 {
-    std::error_code poll(co1::detail::ready_sink_t& /*unused*/, std::chrono::milliseconds /*unused*/) { return {}; }
+    std::error_code poll(co1::detail::ready_sink_t& /*unused*/,
+                         const co1::poll_context& /*unused*/,
+                         co1::time_point_t /*unused*/)
+    {
+        return {};
+    }
 };
 
 struct queue0 : base_queue
@@ -39,7 +44,7 @@ struct queue0 : base_queue
     void add(input_type /*unused*/, const co1::detail::coro_ctl& /*unused*/) { }
     [[nodiscard]] bool empty() const noexcept { return true; }
 
-    co1::time_point_t poll(co1::detail::ready_sink_t& /*unused*/)
+    co1::time_point_t poll(co1::detail::ready_sink_t& /*unused*/, const co1::poll_context& /*unused*/)
     {
         return co1::time_point_t::max();
     }
@@ -53,7 +58,7 @@ struct queue1 : base_queue
     void add(input_type /*unused*/, const co1::detail::coro_ctl& /*unused*/) { }
     [[nodiscard]] bool empty() const noexcept { return false; }
 
-    co1::time_point_t poll(co1::detail::ready_sink_t& ready)
+    co1::time_point_t poll(co1::detail::ready_sink_t& ready, const co1::poll_context& /*unused*/)
     {
         constexpr int MAGIC_DURATION_MS = 42;
         ready.push(nullptr);
@@ -69,7 +74,7 @@ struct queue1x : base_queue
     void add(input_type /*unused*/, result_type& /*unused*/, const co1::detail::coro_ctl& /*unused*/) { }
     [[nodiscard]] bool empty() const noexcept { return false; }
 
-    co1::time_point_t poll(co1::detail::ready_sink_t& ready)
+    co1::time_point_t poll(co1::detail::ready_sink_t& ready, const co1::poll_context& /*unused*/)
     {
         constexpr int MAGIC_DURATION_MS = 0;
         ready.push(nullptr);
@@ -86,7 +91,7 @@ struct queue2 : base_queue
     void add(input_type /*unused*/, result_type& /*unused*/, const co1::detail::coro_ctl& /*unused*/) { }
     [[nodiscard]] bool empty() const noexcept { return false; }
 
-    co1::time_point_t poll(co1::detail::ready_sink_t& ready)
+    co1::time_point_t poll(co1::detail::ready_sink_t& ready, const co1::poll_context& /*unused*/)
     {
         constexpr int MAGIC_DURATION_MS = 7;
         ready.push(nullptr);
@@ -149,55 +154,57 @@ TEST_CASE("poll_generic_event_queues() test", "[queues]")
 {
     std::tuple<> queues0;
     co1::detail::ready_sink_t ready_sink0;
-    auto next_time_point0 = co1::poll_generic_event_queues(ready_sink0, queues0);
+    co1::poll_context poll_ctx { /* finalized coro*/ nullptr, co1::clock_t::now() };
+
+    auto next_time_point0 = co1::poll_generic_event_queues(ready_sink0, poll_ctx,queues0);
     REQUIRE(next_time_point0 == co1::time_point_t::max());
     REQUIRE(ready_sink0.empty() == true); // no queues
 
     std::tuple<queue1, queue2, queue_io> queues1;
     co1::detail::ready_sink_t ready_sink1;
-    auto next_time_point1 = co1::poll_generic_event_queues(ready_sink1, queues1);
+    auto next_time_point1 = co1::poll_generic_event_queues(ready_sink1, poll_ctx, queues1);
     REQUIRE(next_time_point1 == co1::time_point_t { std::chrono::milliseconds{ 7 } });
     REQUIRE(ready_sink1.size() == 8); // 1 from queue1 + 7 from queue2 + 0 from queue_io
 
     std::tuple<queue1x, queue2, queue_io> queues2;
     co1::detail::ready_sink_t ready_sink2;
-    auto next_time_point2 = co1::poll_generic_event_queues(ready_sink2, queues2);
+    auto next_time_point2 = co1::poll_generic_event_queues(ready_sink2, poll_ctx, queues2);
     REQUIRE(next_time_point2 == co1::time_point_t { std::chrono::milliseconds{ 0 } });
     REQUIRE(ready_sink2.size() == 9); // 2 from queue1x + 7 from queue2 + 0 from queue_io
 
     std::tuple<queue_io, queue1x, queue2> queues3;
     co1::detail::ready_sink_t ready_sink3;
-    auto next_time_point3 = co1::poll_generic_event_queues(ready_sink3, queues3);
+    auto next_time_point3 = co1::poll_generic_event_queues(ready_sink3, poll_ctx, queues3);
     REQUIRE(next_time_point3 == co1::time_point_t { std::chrono::milliseconds{ 0 } });
     REQUIRE(ready_sink3.size() == 9); // 0 from queue_io + 2 from queue1x + 7 from queue2
 
     std::tuple<queue1x, queue_io, queue2> queues4;
     co1::detail::ready_sink_t ready_sink4;
-    auto next_time_point4 = co1::poll_generic_event_queues(ready_sink4, queues4);
+    auto next_time_point4 = co1::poll_generic_event_queues(ready_sink4, poll_ctx, queues4);
     REQUIRE(next_time_point4 == co1::time_point_t { std::chrono::milliseconds{ 0 } });
     REQUIRE(ready_sink4.size() == 9); // 0 from queue_io + 2 from queue1x + 7 from queue2
 
     std::tuple<queue1x, queue2> queues5;
     co1::detail::ready_sink_t ready_sink5;
-    auto next_time_point5 = co1::poll_generic_event_queues(ready_sink5, queues5);
+    auto next_time_point5 = co1::poll_generic_event_queues(ready_sink5, poll_ctx, queues5);
     REQUIRE(next_time_point5 == co1::time_point_t { std::chrono::milliseconds{ 0 } });
     REQUIRE(ready_sink5.size() == 9); // 2 from queue1x + 7 from queue2
 
     std::tuple<queue1, queue_io> queues6;
     co1::detail::ready_sink_t ready_sink6;
-    auto next_time_point6 = co1::poll_generic_event_queues(ready_sink6, queues6);
+    auto next_time_point6 = co1::poll_generic_event_queues(ready_sink6, poll_ctx, queues6);
     REQUIRE(next_time_point6 == co1::time_point_t { std::chrono::milliseconds{ 42 } });
     REQUIRE(ready_sink6.size() == 1); // 1 from queue1 + 0 from queue_io
 
     std::tuple<queue1> queues7;
     co1::detail::ready_sink_t ready_sink7;
-    auto next_time_point7 = co1::poll_generic_event_queues(ready_sink7, queues7);
+    auto next_time_point7 = co1::poll_generic_event_queues(ready_sink7, poll_ctx, queues7);
     REQUIRE(next_time_point7 == co1::time_point_t { std::chrono::milliseconds{ 42 } });
     REQUIRE(ready_sink7.size() == 1); // 1 from queue1
 
     std::tuple<queue_io> queues8;
     co1::detail::ready_sink_t ready_sink8;
-    auto next_time_point8 = co1::poll_generic_event_queues(ready_sink8, queues8);
+    auto next_time_point8 = co1::poll_generic_event_queues(ready_sink8, poll_ctx, queues8);
     REQUIRE(next_time_point8 == co1::time_point_t::max());
     REQUIRE(ready_sink8.empty() == true); // 0 from queue_io
 }

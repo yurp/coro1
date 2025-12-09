@@ -48,45 +48,55 @@ public:
         return task_handle_t<T> { std::move(ctl) };
     }
 
-    void run()
+    bool step()
     {
-        TRACE("Starting scheduler loop");
-        while (true)
+        TRACE("Scheduler step");
+        poll_context poll_ctx;
+        poll_ctx.m_now = clock_t::now();
+        if (m_push_context.m_finalized_coro != nullptr)
         {
-            TRACE("Scheduler loop iteration");
+            TRACE("Moving finalized coroutine to poll context");
+            poll_ctx.m_finalized_coro = m_push_context.m_finalized_coro;
+            m_push_context.m_finalized_coro = nullptr;
+        }
 
-            while (m_push_context.m_finalized_coro != nullptr)
-            {
-                TRACE("Destroying finalized coroutine");
-                m_push_context.m_finalized_coro = nullptr;
-            }
+        if (m_ready_coros.empty() && event_queues_empty(m_push_context.m_queues))
+        {
+            return false;
+        }
 
-            if (m_ready_coros.empty() && event_queues_empty(m_push_context.m_queues))
-            {
-                break;
-            }
+        auto next_wakeup = poll_generic_event_queues(m_ready_coros, poll_ctx, m_push_context.m_queues);
+        auto not_later_than = m_ready_coros.empty() ? next_wakeup : clock_t::time_point::min();
+        if constexpr (has_blocking_event_queue_v<Qs...>)
+        {
+            get_io_event_queue(m_push_context.m_queues).poll(m_ready_coros, poll_ctx, not_later_than);
+        }
+        else
+        {
+            std::this_thread::sleep_until(not_later_than);
+        }
 
-            while (m_ready_coros.empty())
-            {
-                TRACE("No ready coroutines, polling timers and IO events");
-                auto time_point = poll_generic_event_queues(m_ready_coros, m_push_context.m_queues);
-                auto now = clock_t::now();
-                auto duration = (m_ready_coros.empty() && time_point > now) ?
-                                    time_point - now :
-                                    clock_t::duration::zero();
-                if constexpr (has_blocking_event_queue_v<Qs...>)
-                {
-                    get_io_event_queue(m_push_context.m_queues).poll(m_ready_coros, duration);
-                }
-                else
-                {
-                    std::this_thread::sleep_for(duration);
-                }
-            }
-
+        if (!m_ready_coros.empty())
+        {
             auto coro_to_resume = m_ready_coros.front();
             m_ready_coros.pop();
             coro_to_resume->m_active_coro.resume();
+        }
+        else
+        {
+            TRACE("No ready coroutines to resume after polling");
+        }
+
+        return true;
+    }
+
+    void run()
+    {
+        TRACE("Starting scheduler loop");
+        bool has_work = true;
+        while (has_work)
+        {
+            has_work = step();
         }
         TRACE("Ending scheduler loop");
     }

@@ -10,6 +10,12 @@
 namespace co1
 {
 
+struct poll_context
+{
+    detail::coro_ctl m_finalized_coro = nullptr;
+    time_point_t m_now;
+};
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace detail
@@ -46,17 +52,17 @@ concept pushable_with_input_only =
 template <typename Q>
 concept pollable_nonblocking =
     has_empty_method<Q> &&
-    requires(Q& queue, detail::ready_sink_t& ready)
+    requires(Q& queue, detail::ready_sink_t& ready, const poll_context& poll_ctx)
     {
-        { queue.poll(ready) } -> std::same_as<time_point_t>;
+        { queue.poll(ready, poll_ctx) } -> std::same_as<time_point_t>;
     };
 
 template <typename Q>
 concept pollable_blocking =
     has_empty_method<Q> &&
-    requires(Q& queue, detail::ready_sink_t& ready)
+    requires(Q& queue, detail::ready_sink_t& ready, const poll_context& poll_ctx, time_point_t not_later_than)
     {
-        { queue.poll(ready, std::chrono::milliseconds{}) } -> std::same_as<std::error_code>;
+        { queue.poll(ready, poll_ctx, not_later_than) } -> std::same_as<std::error_code>;
     };
 
 template<typename Q>
@@ -167,14 +173,16 @@ auto& get_io_event_queue(std::tuple<Qs...>& queues)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <unique_event_queues... Qs>
-time_point_t poll_generic_event_queues(detail::ready_sink_t& sink, std::tuple<Qs...>& queues)
+time_point_t poll_generic_event_queues(detail::ready_sink_t& sink,
+                                       const poll_context& poll_ctx,
+                                       std::tuple<Qs...>& queues)
 {
     time_point_t result = time_point_t::max();
     ([&]
     {
         if constexpr (generic_event_queue<Qs>)
         {
-            result = std::min(result, std::get<Qs>(queues).poll(sink));
+            result = std::min(result, std::get<Qs>(queues).poll(sink, poll_ctx));
         }
     }(), ...);
 
@@ -195,6 +203,8 @@ struct pushable_context
     detail::coro_ctl m_finalized_coro = nullptr;
 };
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 template <typename Ctx, typename In>
 concept pushable = requires(Ctx ctx, In&& input)
 {
@@ -205,6 +215,57 @@ template <typename Ctx, typename In, typename Result>
 concept pushable_with_result = requires(Ctx ctx, In&& input, Result&& output)
 {
     { ctx.push_to_queue(std::forward<In>(input), std::forward<Result>(output)) } -> std::same_as<void>;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <typename In>
+struct base_event_queue_awaiter
+{
+    base_event_queue_awaiter(const base_event_queue_awaiter& ) = delete;
+    base_event_queue_awaiter& operator=(const base_event_queue_awaiter& ) = delete;
+    base_event_queue_awaiter(base_event_queue_awaiter&& ) = delete;
+    base_event_queue_awaiter& operator=(base_event_queue_awaiter&& ) = delete;
+    ~base_event_queue_awaiter() = default;
+
+    template <typename T>
+    explicit base_event_queue_awaiter(T&& input) : m_input(std::forward<T>(input))  { }
+
+    [[nodiscard]] bool await_ready() noexcept { return false; }
+
+    In m_input;
+};
+
+template <typename In, typename Result = void>
+    requires (std::is_void_v<Result> || std::default_initializable<Result>)
+struct event_queue_awaiter : base_event_queue_awaiter<In>
+{
+    using base_event_queue_awaiter<In>::base_event_queue_awaiter;
+
+    template <typename Ctx>
+    void await_suspend(std::coroutine_handle<Ctx> coro) noexcept
+        requires pushable_with_result<Ctx, In, Result>
+    {
+        coro.promise().push_to_queue(std::move(this->m_input), m_output);
+    }
+
+    Result await_resume() noexcept { return std::move(m_output); }
+
+    Result m_output;
+};
+
+template <typename In>
+struct event_queue_awaiter<In, void> : base_event_queue_awaiter<In>
+{
+    using base_event_queue_awaiter<In>::base_event_queue_awaiter;
+
+    template <typename Ctx>
+    void await_suspend(std::coroutine_handle<Ctx> coro) noexcept
+        requires pushable<Ctx, In>
+    {
+        coro.promise().push_to_queue(std::move(this->m_input));
+    }
+    void await_resume() noexcept { }
 };
 
 } // namespace co1

@@ -11,55 +11,6 @@
 namespace co1
 {
 
-template <typename In>
-struct base_event_queue_awaiter
-{
-    base_event_queue_awaiter(const base_event_queue_awaiter& ) = delete;
-    base_event_queue_awaiter& operator=(const base_event_queue_awaiter& ) = delete;
-    base_event_queue_awaiter(base_event_queue_awaiter&& ) = delete;
-    base_event_queue_awaiter& operator=(base_event_queue_awaiter&& ) = delete;
-    ~base_event_queue_awaiter() = default;
-
-    template <typename T>
-    explicit base_event_queue_awaiter(T&& input) : m_input(std::forward<T>(input))  { }
-
-    [[nodiscard]] bool await_ready() noexcept { return false; }
-
-    In m_input;
-};
-
-template <typename In, typename Result = void>
-    requires (std::is_void_v<Result> || std::default_initializable<Result>)
-struct event_queue_awaiter : base_event_queue_awaiter<In>
-{
-    using base_event_queue_awaiter<In>::base_event_queue_awaiter;
-
-    template <typename Ctx>
-    void await_suspend(std::coroutine_handle<Ctx> coro) noexcept
-        requires pushable_with_result<Ctx, In, Result>
-    {
-        coro.promise().push_to_queue(std::move(this->m_input), m_output);
-    }
-
-    Result await_resume() noexcept { return std::move(m_output); }
-
-    Result m_output;
-};
-
-template <typename In>
-struct event_queue_awaiter<In, void> : base_event_queue_awaiter<In>
-{
-    using base_event_queue_awaiter<In>::base_event_queue_awaiter;
-
-    template <typename Ctx>
-    void await_suspend(std::coroutine_handle<Ctx> coro) noexcept
-        requires pushable<Ctx, In>
-    {
-        coro.promise().push_to_queue(std::move(this->m_input));
-    }
-    void await_resume() noexcept { }
-};
-
 event_queue_awaiter<time_point_t> operator co_await(wait time_wait)
 {
     return event_queue_awaiter<time_point_t> { time_wait.until() };

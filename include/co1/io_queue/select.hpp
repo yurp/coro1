@@ -38,10 +38,12 @@ public:
 
     [[nodiscard]] bool empty() const noexcept { return m_iows.empty(); }
 
-    template <typename Rep, typename Period>
-    std::error_code poll(detail::ready_sink_t& ready, std::chrono::duration<Rep, Period> timeout)
+    std::error_code poll(detail::ready_sink_t& ready, const poll_context& poll_ctx, time_point_t not_later_than)
     {
         using namespace std::chrono;
+
+        auto now = poll_ctx.m_now;
+        auto timeout = (not_later_than > now) ? (not_later_than - now) : clock_t::duration::zero();
 
         TRACE("Monitoring " << m_iows.size() << " file descriptors, timeout: "
                             << duration_cast<milliseconds>(timeout).count() << " ms");
@@ -52,7 +54,7 @@ public:
             if (bad_fd_detected)
             {
                 TRACE("Detected bad file descriptors during fd_set build");
-                timeout = duration<Rep, Period>::zero();
+                timeout = clock_t::duration::zero();
             }
 
             timeval tmval {};
@@ -77,7 +79,7 @@ public:
             if (select_error == std::errc::bad_file_descriptor)
             {
                 process_bad_fd_results(ready);
-                timeout = duration<Rep, Period>::zero();
+                timeout = clock_t::duration::zero();
             }
             else if (select_error == std::errc::interrupted ||
                      select_error == std::errc::resource_unavailable_try_again)

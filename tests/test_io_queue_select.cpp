@@ -39,16 +39,24 @@ void write_eventfd(co1::fd_t event_fd, int64_t value)
     REQUIRE(bytes_written == sizeof(int64_t));
 }
 
+template<typename Rep, typename Period>
+co1::time_point_t get_future_timepoint(std::chrono::duration<Rep, Period> duration)
+{
+    return co1::clock_t::now() + duration;
+}
+
 } // namespace
 
 TEST_CASE("io_queue/select simple: empty and invalid fd scenarios", "[io_queue/select]")
 {
     co1::io_queue::select test_select {};
     co1::detail::ready_sink_t ready;
+    co1::poll_context poll_ctx { /* finalized coro*/ nullptr, co1::clock_t::now() };
+
     REQUIRE(test_select.empty());
     WHEN("polling empty queue")
     {
-        std::error_code ecode = test_select.poll(ready, 1ms);
+        std::error_code ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(1ms));
         THEN("poll returns immediately with no error")
         {
             REQUIRE(test_select.empty());
@@ -69,7 +77,7 @@ TEST_CASE("io_queue/select simple: empty and invalid fd scenarios", "[io_queue/s
             }
             WHEN("polling the queue with invalid fd")
             {
-                std::error_code ecode = test_select.poll(ready, 1ms);
+                std::error_code ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(1ms));
                 THEN("empty queue, no error from poll (error is reported via fd_error), 'ready' contains the coro")
                 {
                     REQUIRE(test_select.empty());
@@ -87,6 +95,8 @@ TEST_CASE("io_queue/select one fd scenarios", "[io_queue/select]")
 {
     co1::io_queue::select test_select {};
     co1::detail::ready_sink_t ready;
+    co1::poll_context poll_ctx { /* finalized coro*/ nullptr, co1::clock_t::now() };
+
     WHEN("there is a valid fd")
     {
         co1::fd_t event_fd = create_eventfd();
@@ -98,7 +108,7 @@ TEST_CASE("io_queue/select one fd scenarios", "[io_queue/select]")
             WHEN("writing data to eventfd to make it readable and polling immediately (it is now readable)")
             {
                 write_eventfd(event_fd, MAGIC_NUMBER);
-                std::error_code ecode = test_select.poll(ready, 100ms);
+                std::error_code ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(100ms));
                 THEN("empty queue, no errors, coro is in 'ready', read from fd succeeded")
                 {
                     REQUIRE(test_select.empty());
@@ -111,7 +121,7 @@ TEST_CASE("io_queue/select one fd scenarios", "[io_queue/select]")
             }
             WHEN("polling with timeout but added fd is not ready for read")
             {
-                std::error_code ecode = test_select.poll(ready, 100ms);
+                std::error_code ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(100ms));
                 THEN("poll returns after timeout with no ready fds")
                 {
                     REQUIRE(!ecode);
@@ -128,7 +138,7 @@ TEST_CASE("io_queue/select one fd scenarios", "[io_queue/select]")
         {
             test_select.add({ co1::io_type::write, event_fd }, fd_error, nullptr);
             REQUIRE(!test_select.empty());
-            std::error_code ecode = test_select.poll(ready, 100ms);
+            std::error_code ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(100ms));
             THEN("empty queue, no errors, coro is in 'ready'")
             {
                 REQUIRE(test_select.empty());
@@ -146,6 +156,8 @@ TEST_CASE("io_queue/select two fds scenarios", "[io_queue/select]")
 {
     co1::io_queue::select test_select {};
     co1::detail::ready_sink_t ready;
+    co1::poll_context poll_ctx { /* finalized coro*/ nullptr, co1::clock_t::now() };
+
     WHEN("there are 2 valid fds")
     {
         co1::fd_t event_fd1 = create_eventfd();
@@ -162,7 +174,7 @@ TEST_CASE("io_queue/select two fds scenarios", "[io_queue/select]")
                 write_eventfd(event_fd1, MAGIC_NUMBER_1);
                 WHEN("polling the queue")
                 {
-                    std::error_code ecode = test_select.poll(ready, 100ms);
+                    std::error_code ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(100ms));
                     THEN("no errors, 2nd fd still pending, 1st fd ready, read 1st fd succeeds")
                     {
                         REQUIRE(!ecode);
@@ -176,7 +188,7 @@ TEST_CASE("io_queue/select two fds scenarios", "[io_queue/select]")
                     WHEN("writing data to 2nd eventfd to make it readable and polling again")
                     {
                         write_eventfd(event_fd2, MAGIC_NUMBER_2);
-                        ecode = test_select.poll(ready, 100ms);
+                        ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(100ms));
                         THEN("no errors, empty queue, 2nd fd ready, read 2nd fd succeeds")
                         {
                             REQUIRE(!ecode);
@@ -191,7 +203,7 @@ TEST_CASE("io_queue/select two fds scenarios", "[io_queue/select]")
                 WHEN("writing data to 2nd eventfd to make it readable immediately after 1st, then polling the queue")
                 {
                     write_eventfd(event_fd2, MAGIC_NUMBER_2);
-                    std::error_code ecode = test_select.poll(ready, 100ms);
+                    std::error_code ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(100ms));
                     THEN("no errors, queue becomes empty, both fds ready, read from both fds succeeds")
                     {
                         REQUIRE(!ecode);
@@ -217,6 +229,7 @@ TEST_CASE("io_queue/select complex scenario", "[io_queue/select]")
 {
     co1::io_queue::select test_select {};
     co1::detail::ready_sink_t ready;
+    co1::poll_context poll_ctx { /* finalized coro*/ nullptr, co1::clock_t::now() };
 
     WHEN("there are 2 fds, add them both to the queue for read")
     {
@@ -230,7 +243,7 @@ TEST_CASE("io_queue/select complex scenario", "[io_queue/select]")
         WHEN("write to first eventfd to make it readable, and then poll the queue")
         {
             write_eventfd(event_fd1, MAGIC_NUMBER_1);
-            std::error_code ecode = test_select.poll(ready, 100ms);
+            std::error_code ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(100ms));
             THEN("no errors, 2nd fd still pending, 1st fd ready, read 1st fd succeeds")
             {
                 REQUIRE(!ecode);
@@ -253,7 +266,7 @@ TEST_CASE("io_queue/select complex scenario", "[io_queue/select]")
                 ::close(event_fd1);
                 test_select.add({ co1::io_type::read, event_fd1 }, fd_error1, nullptr);
                 write_eventfd(event_fd2, MAGIC_NUMBER_2);
-                ecode = test_select.poll(ready, 100ms);
+                ecode = test_select.poll(ready, poll_ctx, get_future_timepoint(100ms));
                 THEN("both fds are in 'ready', but closed fd reports error, read of 2nd fd succeeds")
                 {
                     REQUIRE(!ecode);

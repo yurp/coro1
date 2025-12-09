@@ -42,11 +42,11 @@ public:
     /// - queue is empty  -> max()
     /// - no ready timers -> time_point of the next timer
     /// - some ready timers -> min()
-    time_point_t poll(ready_sink_t& ready)
+    time_point_t poll(ready_sink_t& ready, const poll_context& poll_ctx)
     {
         using namespace std::chrono;
 
-        time_point_t now = clock_t::now();
+        time_point_t now = poll_ctx.m_now;
         time_point_t next = clock_t::time_point::max();
         while (!m_timers.empty() && m_timers.top().time <= now)
         {
